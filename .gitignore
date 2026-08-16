@@ -1,4 +1,3 @@
-main.py
-sounds/
-testmic.py
-wakeword.py
+.DS_Store
+.idea/
+

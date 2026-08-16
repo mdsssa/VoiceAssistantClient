@@ -7,6 +7,28 @@ import tempfile
 import os
 import json
 import argparse
+from spotifyConnect import (
+    play_music,
+    pause_music,
+    resume_music,
+    skip_track,
+    previous_music_track,
+    change_volume,
+    seek_track,
+)
+from tools import tools
+from weather import get_weather
+
+AVAILABLE_FUNCTIONS = {
+    "get_weather": get_weather,
+    "play_music": play_music,
+    "pause_music": pause_music,
+    "resume_music": resume_music,
+    "skip_track": skip_track,
+    "previous_music_track": previous_music_track,
+    "change_volume": change_volume,
+    "seek_track": seek_track,
+}
 
 SERVER = "100.70.125.15"
 STT_URL = f"http://{SERVER}:8001/transcribe"
@@ -17,13 +39,44 @@ SAMPLE_RATE = 16000
 
 # SOUND_LISTENING_START = "/System/Library/Sounds/Pop.aiff"
 # SOUND_LISTENING_END = "/System/Library/Sounds/Tink.aiff"
-SOUND_LISTENING_START = "./sounds/listeningStartV1.mp3"
-SOUND_LISTENING_END = "./sounds/listeningStopV1.mp3"
-SOUND_READY = "/System/Library/Sounds/Glass.aiff"
+SOUND_LISTENING_START = "./sounds/readyToListenV2.mp3"
+SOUND_LISTENING_END = "./sounds/listeningEndV2.mp3"
+# SOUND_READY = "/System/Library/Sounds/Glass.aiff"
 
 # Сколько последних сообщений (без учёта system) держим в контексте.
 # Не даёт истории расти бесконечно и тащить за собой мусор/галлюцинации.
 HISTORY_LIMIT = 12
+
+WEATHER_CODE_DESCRIPTIONS = {
+    0: "ясно",
+    1: "преимущественно ясно",
+    2: "переменная облачность",
+    3: "пасмурно",
+    45: "туман",
+    48: "изморозь",
+    51: "лёгкая морось",
+    53: "морось",
+    55: "сильная морось",
+    56: "лёгкая ледяная морось",
+    57: "сильная ледяная морось",
+    61: "небольшой дождь",
+    63: "дождь",
+    65: "сильный дождь",
+    66: "лёгкий ледяной дождь",
+    67: "сильный ледяной дождь",
+    71: "небольшой снег",
+    73: "снег",
+    75: "сильный снег",
+    77: "снежная крупа",
+    80: "небольшой ливень",
+    81: "ливень",
+    82: "сильный ливень",
+    85: "небольшой снегопад",
+    86: "сильный снегопад",
+    95: "гроза",
+    96: "гроза с небольшим градом",
+    99: "гроза с сильным градом",
+}
 
 
 def play_sound(path, blocking=True):
@@ -32,63 +85,36 @@ def play_sound(path, blocking=True):
     else:
         subprocess.Popen(["afplay", path])
 
+# SYSTEM_PROMPT = (
+#     "Тебя зовут Кэра (Кэролайн). Ты дружелюбный голосовой помощник. "
+#     "Отвечай кратко, естественно, на русском языке, как в живом разговоре. "
+#     "Если пользователь спрашивает про погоду, используй функцию get_weather с названием города, которое он назвал. "
+#     "Если пользователь просит включить, поставить или найти музыку, трек или исполнителя — "
+#     "используй функцию play_music, передав туда название трека и/или исполнителя, которые он назвал. "
+#     "Если просит поставить на паузу — pause_music, продолжить/возобновить — resume_music, "
+#     "переключить на следующий трек — skip_track, вернуться к предыдущему — previous_music_track. "
+#     "Если просит изменить громкость (тише/громче/на конкретный процент) — используй change_volume "
+#     "с подходящим числом от 0 до 100. Если просит перемотать трек на определённое время — используй "
+#     "seek_track с позицией в секундах. "
+#     "Никогда не придумывай данные о погоде или названия треков сама — если функция недоступна или вернула ошибку, честно скажи об этом."
+# )
 
 SYSTEM_PROMPT = (
-    "Тебя зовут Кэра (Кэролайн). Ты дружелюбный голосовой помощник. "
-    "Отвечай кратко, естественно, на русском языке, как в живом разговоре. "
-    "Если пользователь спрашивает про погоду, используй функцию get_weather с названием города, которое он назвал. "
-    "Никогда не придумывай данные о погоде сама — если функция недоступна или вернула ошибку, честно скажи об этом."
+    "Тебя зовут Кэра. Ты дружелюбный голосовой помощник. "
+    "Отвечай кратко и естественно на  ТОЛЬКО НА РУССКОМ!! НЕЛЬЗЯ ГОВОРИТЬ НА КИТАЙСКОМ!!!!!!!. "
+    "Для погоды, музыки и управления плеером используй доступные функции —"
+     "Если пользователь просит следующий/другой/новый трек — используй skip_track. "
+"Если просит предыдущий/прошлый/назад — используй previous_music_track. "
+"При неясной формулировке про переключение трека по умолчанию считай, что это skip_track."
+    "никогда не отвечай текстом вместо вызова функции и не придумывай данные."
 )
 
-tools = [{
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Получить текущую погоду в указанном городе",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string", "description": "Название города, например Москва, Париж, Токио"}
-            },
-            "required": ["city"]
-        }
-    }
-}]
-
-
-def get_weather(city):
-    try:
-        geo = requests.get(
-            "https://geocoding-api.open-meteo.com/v1/search",
-            params={"name": city, "count": 1, "language": "ru"}
-        ).json()
-        if not geo.get("results"):
-            return f"Не нашла город {city}"
-        loc = geo["results"][0]
-        lat, lon = loc["latitude"], loc["longitude"]
-        found_name = loc.get("name", city)
-
-        weather = requests.get(
-            "https://api.open-meteo.com/v1/forecast",
-            params={"latitude": lat, "longitude": lon, "current_weather": True}
-        ).json()["current_weather"]
-
-        temp = round(weather["temperature"])
-        wind = weather["windspeed"]
-
-        result = f"В городе {found_name} сейчас {temp} градусов, скорость ветра {wind} километров в час"
-        print(result)
-        return result
-    except Exception as e:
-        print(f"[get_weather error] {e}")
-        return f"Не получилось узнать погоду: {e}"
-
-
-AVAILABLE_FUNCTIONS = {"get_weather": get_weather}
-
-
 def record_until_silence(threshold=800, silence_duration=1.2, max_duration=15):
-    """Пишет звук, пока не наступит тишина после того, как человек начал говорить."""
+    """Пишет звук, пока не наступит тишина после того, как человек начал говорить.
+    На время записи ставит Spotify на паузу, чтобы музыка не забивала микрофон
+    и не триггерила VAD как "пользователь говорит"."""
+    was_playing = pause_music()  # см. модификацию pause_music ниже — возвращает, было ли что играть
+
     frames = []
     chunk_size = 1024
     silence_chunks = 0
@@ -98,32 +124,31 @@ def record_until_silence(threshold=800, silence_duration=1.2, max_duration=15):
 
     stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype='int16')
     stream.start()
-    # Сигнал играем ПОСЛЕ старта стрима и неблокирующе — иначе первый слог речи
-    # теряется, пока проигрывается звук / инициализируется стрим.
     play_sound(SOUND_LISTENING_START, blocking=False)
 
-    for _ in range(max_chunks):
-        data, _ = stream.read(chunk_size)
-        frames.append(data.copy())
-        volume = np.abs(data).mean()
+    try:
+        for _ in range(max_chunks):
+            data, _ = stream.read(chunk_size)
+            frames.append(data.copy())
+            volume = np.abs(data).mean()
 
-        if volume > threshold:
-            started_speaking = True
-            silence_chunks = 0
-        elif started_speaking:
-            silence_chunks += 1
-            if silence_chunks > silence_limit:
-                break
-
-    stream.stop()
-    stream.close()
+            if volume > threshold:
+                started_speaking = True
+                silence_chunks = 0
+            elif started_speaking:
+                silence_chunks += 1
+                if silence_chunks > silence_limit:
+                    break
+    finally:
+        stream.stop()
+        stream.close()
+        if was_playing:
+            resume_music()
 
     if not started_speaking:
         return None
 
     return np.concatenate(frames, axis=0)
-
-
 def transcribe(audio) -> str:
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         sf.write(f.name, audio, SAMPLE_RATE)
@@ -212,7 +237,7 @@ def one_exchange(history):
 
     reply = ask_llm(text, history)
 
-    play_sound(SOUND_READY)
+    # play_sound(SOUND_READY)
     speak(reply)
     return True
 

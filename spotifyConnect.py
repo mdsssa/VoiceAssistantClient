@@ -35,7 +35,7 @@ TARGET_DEVICE_NAME = os.environ.get("SPOTIFY_TARGET_DEVICE")
 # dashboard (Redirect URIs). Локальный редирект для однократной ручной
 # авторизации на этой же машине.
 
-SCOPES = "user-read-playback-state user-modify-playback-state"
+SCOPES =  "user-read-playback-state user-modify-playback-state user-library-modify"
 
 TOKEN_FILE = os.path.expanduser("~/.spotify_token_cache.json")
 
@@ -171,6 +171,33 @@ def find_device_id(name_substring):
             return d["id"]
     return None
 
+def whats_playing(*_args, **_kwargs):
+    """Говорит, какой трек сейчас играет."""
+    try:
+        track = get_current_track()
+        if not track:
+            return "Сейчас ничего не играет"
+        result = f"Сейчас играет: {track['name']}"
+        print(result)
+        return result
+    except Exception as e:
+        print(f"[whats_playing error] {e}")
+        return f"Не получилось узнать, что играет: {e}"
+
+
+def like_current_track(*_args, **_kwargs):
+    try:
+        track = get_current_track()
+        if not track:
+            return "Сейчас ничего не играет, нечего добавлять в избранное"
+        save_track(track["uri"])  # было track["id"]
+        result = f"Добавила в избранное: {track['name']}"
+        print(result)
+        return result
+    except Exception as e:
+        print(f"[like_current_track error] {e}")
+        return f"Не получилось добавить в избранное: {e}"
+
 
 def search_track(query):
     """Ищет трек, возвращает его uri и читаемое название или None."""
@@ -218,11 +245,37 @@ def next_track(device_id=None):
         r.raise_for_status()
 
 
-# ==== Часть 4: высокоуровневая функция для tool-calling ====
+def get_current_track():
+    """Возвращает информацию о текущем играющем треке (или None, если ничего не играет)."""
+    r = requests.get(f"{API_BASE}/me/player/currently-playing", headers=_auth_headers())
+    if r.status_code == 204 or not r.content:
+        return None
+    r.raise_for_status()
+    data = r.json()
+    item = data.get("item")
+    if not item:
+        return None
+    artists = ", ".join(a["name"] for a in item["artists"])
+    return {
+        "id": item["id"],
+        "uri": item["uri"],
+        "name": f"{artists} — {item['name']}",
+        "is_playing": data.get("is_playing", False),
+    }
 
-# Имя устройства, на которое всегда играем. На маке — имя десктопного
-# клиента Spotify, на HeroBox — имя, заданное в конфиге librespot/raspotify
-# (например, --name "HeroBox").
+
+def save_track(track_uri):
+    """Добавляет трек в 'Your Music' (Liked Songs) через актуальный
+    универсальный эндпоинт библиотеки."""
+    r = requests.put(
+        f"{API_BASE}/me/library",
+        headers=_auth_headers(),
+        params={"uris": track_uri},
+    )
+    if r.status_code not in (200, 204):
+        print(f"[save_track] {r.status_code}: {r.text}")
+        r.raise_for_status()
+
 
 
 def search_track(query):

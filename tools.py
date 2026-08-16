@@ -88,6 +88,23 @@ tools = [
             }
         }
     }
+    ,
+{
+    "type": "function",
+    "function": {
+        "name": "whats_playing",
+        "description": "Узнать, какой трек сейчас играет",
+        "parameters": {"type": "object", "properties": {}}
+    }
+},
+{
+    "type": "function",
+    "function": {
+        "name": "like_current_track",
+        "description": "Добавить текущий играющий трек в избранное (Liked Songs)",
+        "parameters": {"type": "object", "properties": {}}
+    }
+}
 ]
 
 WEATHER_CODE_DESCRIPTIONS = {

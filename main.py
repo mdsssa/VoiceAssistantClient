@@ -18,6 +18,8 @@ from spotifyConnect import (
 )
 from tools import tools
 from weather import get_weather
+from spotifyConnect import whats_playing, like_current_track
+
 
 AVAILABLE_FUNCTIONS = {
     "get_weather": get_weather,
@@ -28,6 +30,8 @@ AVAILABLE_FUNCTIONS = {
     "previous_music_track": previous_music_track,
     "change_volume": change_volume,
     "seek_track": seek_track,
+    "whats_playing" : whats_playing,
+    "like_current_track" : like_current_track,
 }
 
 SERVER = "100.70.125.15"
@@ -107,9 +111,11 @@ SYSTEM_PROMPT = (
 "Если просит предыдущий/прошлый/назад — используй previous_music_track. "
 "При неясной формулировке про переключение трека по умолчанию считай, что это skip_track."
     "никогда не отвечай текстом вместо вызова функции и не придумывай данные."
+"Если спрашивают, что сейчас играет — используй whats_playing. "
+"Если просят добавить текущий трек в избранное/лайкнуть — используй like_current_track. "
 )
 
-def record_until_silence(threshold=800, silence_duration=1.2, max_duration=15):
+def record_until_silence(threshold=800, silence_duration=2, max_duration=15):
     """Пишет звук, пока не наступит тишина после того, как человек начал говорить.
     На время записи ставит Spotify на паузу, чтобы музыка не забивала микрофон
     и не триггерила VAD как "пользователь говорит"."""

@@ -84,10 +84,11 @@ WEATHER_CODE_DESCRIPTIONS = {
 
 
 def play_sound(path, blocking=True):
+    cmd = ["mpg123", "-q", path]
     if blocking:
-        subprocess.run(["afplay", path])
+        subprocess.run(cmd)
     else:
-        subprocess.Popen(["afplay", path])
+        subprocess.Popen(cmd)
 
 
 SYSTEM_PROMPT = (
@@ -214,7 +215,7 @@ def speak(text):
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         f.write(r.content)
         path = f.name
-    subprocess.run(["afplay", path])
+    subprocess.run(["aplay", "-q", path])
     os.remove(path)
 
 

@@ -1,17 +1,3 @@
-"""
-spotify_control.py
-
-Модуль для управления Spotify через Web API: авторизация (Authorization Code
-Flow) с кэшированием и авто-обновлением токена, поиск треков и управление
-воспроизведением.
-
-Использование (один раз, вручную, для первичной авторизации):
-    python3 spotify_control.py --auth
-
-Дальше модуль импортируется и используется как обычная функция:
-    from spotify_control import play_music
-    play_music("Skryptonite Мразь")
-"""
 
 import requests
 import json

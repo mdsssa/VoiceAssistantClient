@@ -1,11 +1,8 @@
-
 import sounddevice as sd
 import numpy as np
 
 SAMPLE_RATE = 16000
 chunk_size = 1024
-
-print("Говори и молчи по очереди, буду печатать уровень громкости. Ctrl+C для выхода")
 
 stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype='int16')
 stream.start()

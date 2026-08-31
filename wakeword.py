@@ -40,3 +40,9 @@ with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=8000, dtype='int16',
                 print("✨ Услышала имя!")
                 subprocess.run([PYTHON_BIN, MAIN_SCRIPT, "--single-turn"])
                 rec.Reset()
+
+                # Пока main.py работал, в очередь набежал "хвост" аудио —
+                # без этого он разгребается после возврата и может ложно
+                # сматчиться на одно из вейк-слов на урезанной grammar.
+                while not q.empty():
+                    q.get_nowait()

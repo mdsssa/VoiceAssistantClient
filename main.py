@@ -64,7 +64,7 @@ def play_sound(path, blocking=True):
 
 
 SYSTEM_PROMPT = (
-    "Тебя зовут Кэра. Ты дружелюбный голосовой помощник. "
+    "Тебя зовут Кэра. Ты дружелюбный голосовой помощник. ты не должна отвечать слишком крупными ответами и использовать любые эмоджи "
     "Отвечай кратко и естественно на  ТОЛЬКО НА РУССКОМ!! НЕЛЬЗЯ ГОВОРИТЬ НА КИТАЙСКОМ!!!!!!!. "
     "Для погоды, музыки и управления плеером используй доступные функции —"
      "Если пользователь просит следующий/другой/новый трек — используй skip_track. "
@@ -122,7 +122,7 @@ def transcribe(audio) -> str:
     with open(path, 'rb') as f:
         r = requests.post(STT_URL, files={'file': f})
     os.remove(path)
-    text = r.json().get("text", "").replace("[музыка]", "")
+    text = r.json().get("text", "")
     print(text)
     return text
 
@@ -193,7 +193,7 @@ def speak(text):
         path = f.name
     subprocess.run(["aplay", "-q", path])
     os.remove(path)
-    spotifyConnect.play_music()
+    spotifyConnect.resume_music()
 
 def one_exchange(history):
     audio = record_until_silence()

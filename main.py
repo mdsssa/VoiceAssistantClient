@@ -196,7 +196,7 @@ def ask_llm(text, history):
             "messages": history,
             "tools": tools,
             "tool_choice": "required",
-            "max_tokens": 300
+            "max_tokens": 150
             # "temperature": 0.1
         })
         final_message = r2.json()["choices"][0]["message"]

@@ -4,6 +4,8 @@ import json
 import subprocess
 import os
 from vosk import Model, KaldiRecognizer
+import platform
+
 
 MODEL_PATH = os.path.expanduser("~/vosk-model-small-ru-0.22")
 SAMPLE_RATE = 16000
@@ -14,7 +16,7 @@ def load_common_words(path):
 
 COMMON_WORDS = load_common_words(os.path.expanduser("~/VoiceAssistantClient/common_words_ru.txt"))
 
-if os.name == "posix":
+if platform.system() == "Darwin":
     PYTHON_BIN = "python3"
     MAIN_SCRIPT = os.path.expanduser("~/VoiceAssistantClient/main.py")
 else:

@@ -465,6 +465,7 @@ def previous_music_track(*_args, **_kwargs):
 #         print(f"[change_volume error] {e}")
 #         return f"Не получилось изменить громкость: {e}"
 
+
 def change_volume(level):
     try:
         level = max(0, min(100, int(level)))

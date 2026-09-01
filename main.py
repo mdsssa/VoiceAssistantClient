@@ -198,8 +198,8 @@ def ask_llm(text, history):
         r2 = requests.post(LLM_URL, json={
             "messages": history,
             "tools": tools,
-            "tool_choice": "none",
-            "max_tokens": 150
+            # "tool_choice": "none",
+            "max_tokens": 300
             # "temperature": 0.1
         })
         final_message = r2.json()["choices"][0]["message"]

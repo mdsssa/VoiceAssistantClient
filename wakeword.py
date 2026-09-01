@@ -7,24 +7,28 @@ from vosk import Model, KaldiRecognizer
 
 MODEL_PATH = os.path.expanduser("~/vosk-model-small-ru-0.22")
 SAMPLE_RATE = 16000
-WAKE_WORDS = ["кера", "кэра", "керра", "кара", "кира", "ковра", "киря", "кэро", "кэйро", "керри", "керо", "кэролайн"]
+WAKE_WORDS = ["кера", "кэра", "керра", "кэролайн" , ]
+def load_common_words(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read().split()
 
-# Путь к интерпретатору внутри venv — обязательно, иначе subprocess не увидит
-# установленные туда зависимости (requests, sounddevice, vosk и т.д.)
-PYTHON_BIN = os.path.expanduser("~/VoiceAssistantClient/venv/bin/python3")
-MAIN_SCRIPT = os.path.expanduser("~/VoiceAssistantClient/main.py")
+COMMON_WORDS = load_common_words(os.path.expanduser("~/VoiceAssistantClient/common_words_ru.txt"))
+
+if os.name == "posix":
+    PYTHON_BIN = "python3"
+    MAIN_SCRIPT = os.path.expanduser("~/VoiceAssistantClient/main.py")
+else:
+    PYTHON_BIN = os.path.expanduser("~/VoiceAssistantClient/venv/bin/python3")
+    MAIN_SCRIPT = os.path.expanduser("~/VoiceAssistantClient/main.py")
 
 model = Model(MODEL_PATH)
 
-# Grammar ограничивает распознавание заданным списком слов вместо полного
-# словаря — резко снижает нагрузку на CPU и повышает точность именно на
-# нестандартных словах типа "Кэра", раз модели не нужно перебирать весь
-# словарь, а только сравнивать с коротким списком.
-grammar = json.dumps(WAKE_WORDS + ["[unk]"], ensure_ascii=False)
+
+grammar = json.dumps(WAKE_WORDS + COMMON_WORDS + ["[unk]"], ensure_ascii=False)
 rec = KaldiRecognizer(model, SAMPLE_RATE, grammar)
 
 q = queue.Queue()
-
+rec.SetWords(True)  # включает вывод confidence по каждому слову
 def callback(indata, frames, time, status):
     q.put(bytes(indata))
 
@@ -35,11 +39,21 @@ with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=8000, dtype='int16',
         data = q.get()
         if rec.AcceptWaveform(data):
             result = json.loads(rec.Result())
+            words = result.get("result", [])
             text = result.get("text", "").lower()
-            if any(w in text for w in WAKE_WORDS):
-                print("✨ Услышала имя!")
+
+            if words:
+                # Средняя уверенность по всем распознанным словам в этой фразе
+                avg_conf = sum(w.get("conf", 0) for w in words) / len(words)
+            else:
+                avg_conf = 0
+
+            print(f"heard: '{text}' conf: {avg_conf:.2f}")
+
+
+            if any(w in text for w in WAKE_WORDS) and avg_conf > 0.5:
+                print(f"✨ Услышала имя! (conf={avg_conf:.2f})")
                 subprocess.run([PYTHON_BIN, MAIN_SCRIPT, "--single-turn"])
                 rec.Reset()
-
                 while not q.empty():
                     q.get_nowait()

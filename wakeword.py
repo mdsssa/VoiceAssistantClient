@@ -5,11 +5,18 @@ import subprocess
 import os
 from vosk import Model, KaldiRecognizer
 import platform
+import json
 
+
+with open("config.json", "r") as f:
+    data = json.load(f)
+
+
+accuracy = data["accuracy"]
 
 MODEL_PATH = os.path.expanduser("~/vosk-model-small-ru-0.22")
 SAMPLE_RATE = 16000
-WAKE_WORDS = ["кера", "кэра", "керра", "кэролайн" , ]
+WAKE_WORDS = ["кера", "кэра", "керра", "кэролайн"]
 def load_common_words(path):
     with open(path, encoding="utf-8") as f:
         return f.read().split()
@@ -53,7 +60,7 @@ with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=8000, dtype='int16',
             print(f"heard: '{text}' conf: {avg_conf:.2f}")
 
 
-            if any(w in text for w in WAKE_WORDS) and avg_conf > 0.5:
+            if any(w in text for w in WAKE_WORDS) and avg_conf > accuracy:
                 print(f"✨ Услышала имя! (conf={avg_conf:.2f})")
                 subprocess.run([PYTHON_BIN, MAIN_SCRIPT, "--single-turn"])
                 rec.Reset()

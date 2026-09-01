@@ -7,9 +7,6 @@ from vosk import Model, KaldiRecognizer
 import platform
 import json
 
-
-
-
 accuracy = 0.6
 MODEL_PATH = os.path.expanduser("~/vosk-model-small-ru-0.22")
 SAMPLE_RATE = 16000

@@ -1,4 +1,3 @@
-
 import requests
 import json
 import os
@@ -7,11 +6,13 @@ import webbrowser
 import base64
 import http.server
 import urllib.parse
-
+import subprocess
 import os
 from dotenv import load_dotenv
+import platform
 
-load_dotenv()  # подхватывает .env из текущей директории
+
+load_dotenv()
 
 CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
@@ -450,24 +451,34 @@ def previous_music_track(*_args, **_kwargs):
         return f"Не получилось включить предыдущий трек: {e}"
 
 
+# def change_volume(level):
+#     try:
+#         device_id, err = _resolve_device_or_message()
+#         if err:
+#             return err
+#         level = max(0, min(100, int(level)))
+#         set_volume(level, device_id=device_id)
+#         result = f"Ставлю громкость на {level}%"
+#         print(result)
+#         return result
+#     except Exception as e:
+#         print(f"[change_volume error] {e}")
+#         return f"Не получилось изменить громкость: {e}"
+
 def change_volume(level):
-    """
-    level: громкость в процентах, 0-100. Функция для tool-calling —
-    ожидает уже готовое число от LLM (модель сама переведёт
-    "сделай потише"/"на полную" в конкретный процент по промпту).
-    """
     try:
-        device_id, err = _resolve_device_or_message()
-        if err:
-            return err
         level = max(0, min(100, int(level)))
-        set_volume(level, device_id=device_id)
+        if platform.system() == "Darwin":
+            subprocess.run(["osascript", "-e", f"set volume output volume {level}"])
+        else:
+            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{level}%"], check=True)
         result = f"Ставлю громкость на {level}%"
         print(result)
         return result
     except Exception as e:
         print(f"[change_volume error] {e}")
         return f"Не получилось изменить громкость: {e}"
+
 
 
 def seek_track(seconds):

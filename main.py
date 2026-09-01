@@ -193,7 +193,7 @@ def speak(text):
         path = f.name
     subprocess.run(["aplay", "-q", path])
     os.remove(path)
-    spotifyConnect.pause_music()
+    spotifyConnect.play_music()
 
 def one_exchange(history):
     audio = record_until_silence()

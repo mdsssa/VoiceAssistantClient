@@ -197,7 +197,6 @@ def ask_llm(text, history):
             "tools": tools,
             "tool_choice": "required",
             "max_tokens": 300 ,
-            "temperature": 0.1
         })
         final_message = r2.json()["choices"][0]["message"]
         reply = final_message.get("content") or ""

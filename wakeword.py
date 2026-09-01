@@ -8,12 +8,9 @@ import platform
 import json
 
 
-with open("./wakeConfig.json" , "r" , encoding= "utf-8") as f:
-    data = json.load(f)
 
 
-accuracy = float(data["accuracy"])
-
+accuracy = 70 / 100
 MODEL_PATH = os.path.expanduser("~/vosk-model-small-ru-0.22")
 SAMPLE_RATE = 16000
 WAKE_WORDS = ["кера", "кэра", "керра", "кэролайн"]

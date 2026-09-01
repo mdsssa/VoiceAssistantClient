@@ -8,7 +8,7 @@ import platform
 import json
 
 
-with open("wakeConfig.json" , "r" , encoding= "utf-8") as f:
+with open("./wakeConfig.json" , "r" , encoding= "utf-8") as f:
     data = json.load(f)
 
 

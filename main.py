@@ -7,6 +7,8 @@ import tempfile
 import os
 import json
 import argparse
+
+import spotifyConnect
 from spotifyConnect import (
     play_music,
     pause_music,
@@ -213,12 +215,14 @@ def ask_llm(text, history):
 
 
 def speak(text):
+    spotifyConnect.change_volume("30")
     r = requests.post(TTS_URL, json={"text": text})
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         f.write(r.content)
         path = f.name
     subprocess.run(["aplay", "-q", path])
     os.remove(path)
+    spotifyConnect.change_volume("100")
 
 
 def one_exchange(history):

@@ -173,6 +173,7 @@ def ask_llm(text, history):
     r = requests.post(LLM_URL, json={
         "messages": history,
         "tools": tools,
+        "tool_choice": "required",
         "max_tokens": 300
     })
     message = r.json()["choices"][0]["message"]
@@ -197,7 +198,7 @@ def ask_llm(text, history):
         r2 = requests.post(LLM_URL, json={
             "messages": history,
             "tools": tools,
-            "tool_choice": "required",
+            "tool_choice": "none",
             "max_tokens": 150
             # "temperature": 0.1
         })
@@ -215,15 +216,14 @@ def ask_llm(text, history):
 
 
 def speak(text):
-    spotifyConnect.change_volume("30")
+    spotifyConnect.pause_music()
     r = requests.post(TTS_URL, json={"text": text})
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         f.write(r.content)
         path = f.name
     subprocess.run(["aplay", "-q", path])
     os.remove(path)
-    spotifyConnect.change_volume("100")
-
+    spotifyConnect.pause_music()
 
 def one_exchange(history):
     audio = record_until_silence()

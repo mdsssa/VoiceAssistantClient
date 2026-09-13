@@ -36,7 +36,8 @@ AVAILABLE_FUNCTIONS = {
     "like_current_track" : like_current_track,
 }
 
-SERVER = "100.70.125.15"
+# SERVER = "100.70.125.15"
+SERVER = "localhost"
 STT_URL = f"http://{SERVER}:8001/transcribe"
 LLM_URL = f"http://{SERVER}:8002/v1/chat/completions"
 TTS_URL = f"http://{SERVER}:8003/synthesize"

@@ -17,7 +17,7 @@ model, _ = torch.hub.load(
 )
 model.to(device)
 
-SPEAKER = 'xenia'  # варианты: aidar, baya, kseniya, xenia, eugene, random
+SPEAKER = 'baya'  # варианты: aidar, baya, kseniya, xenia, eugene, random
 SAMPLE_RATE = 48000
 
 @app.route("/synthesize", methods=["POST"])

@@ -20,6 +20,9 @@ app = Flask(__name__)
 # Если будет слишком медленно — попробуй "base".
 model = WhisperModel("small", device="cpu", compute_type="int8")
 
+app.config['JSON_AS_ASCII'] = False
+
+
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():

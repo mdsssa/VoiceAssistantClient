@@ -148,11 +148,11 @@ def trim_history(history):
     if len(rest) > HISTORY_LIMIT:
         rest = rest[-HISTORY_LIMIT:]
     return [system] + rest
-def _build_payload(messages, tool_choice, max_tokens):
+
+def _build_payload(messages, max_tokens):
     payload = {
         "messages": messages,
         "tools": tools,
-        "tool_choice": tool_choice,
         "temperature": 0.1,
         "max_tokens": max_tokens,
     }
@@ -166,7 +166,7 @@ def ask_llm(text, history):
     history[:] = trim_history(history)
 
     r = requests.post(LLM_URL, headers=LLM_HEADERS,
-        json=_build_payload(history, "required", 300))
+        json=_build_payload(history, 300))
     print(f"DEBUG raw response: {r.status_code} {r.text}")
     message = r.json()["choices"][0]["message"]
 
@@ -186,7 +186,7 @@ def ask_llm(text, history):
             })
 
         r2 = requests.post(LLM_URL, headers=LLM_HEADERS,
-            json=_build_payload(history, "none", 150))
+            json=_build_payload(history, 150))
         final_message = r2.json()["choices"][0]["message"]
         reply = final_message.get("content") or ""
         history.append({"role": "assistant", "content": reply})

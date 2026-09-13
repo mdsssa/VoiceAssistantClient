@@ -46,7 +46,7 @@ with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=8000, dtype='int16',
             text = result.get("text", "").lower()
 
             if words:
-                # Средняя уверенность по всем распознанным словам в этой фразе
+    
                 avg_conf = sum(w.get("conf", 0) for w in words) / len(words)
             else:
                 avg_conf = 0

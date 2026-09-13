@@ -137,6 +137,8 @@ def get_access_token():
     return new_data["access_token"]
 
 
+
+
 # ==== Часть 3: сами команды к Web API ====
 
 def _auth_headers():
@@ -499,6 +501,74 @@ def seek_track(seconds):
     except Exception as e:
         print(f"[seek_track error] {e}")
         return f"Не получилось перемотать трек: {e}"
+# "Моя волна" - импровизация
+
+LASTFM_API_KEY = os.environ.get("LASTFM_API_KEY", "")
+
+def get_similar_tracks_lastfm(artist, track, limit=15):
+    r = requests.get(
+        "https://ws.audioscrobbler.com/2.0/",
+        params={
+            "method": "track.getsimilar",
+            "artist": artist,
+            "track": track,
+            "api_key": LASTFM_API_KEY,
+            "format": "json",
+            "limit": limit,
+        }
+    )
+    r.raise_for_status()
+    data = r.json()
+    similar = data.get("similartracks", {}).get("track", [])
+    return [{"artist": t["artist"]["name"], "name": t["name"]} for t in similar]
+
+
+def start_wave(query):
+    """Аналог 'Моей волны' — ищет трек, находит похожие через Last.fm
+    (на основе реальных данных прослушиваний), ищет их в Spotify и
+    запускает очередь из найденного трека + похожих."""
+    try:
+        track = search_track(query)
+        if not track:
+            return f"Не нашла трек по запросу: {query}"
+
+        device_id = find_device_id(TARGET_DEVICE_NAME)
+        if not device_id:
+            return f"Не вижу устройство '{TARGET_DEVICE_NAME}' в списке Spotify Connect."
+
+        artist, title = track["name"].split(" — ", 1)
+        similar = get_similar_tracks_lastfm(artist, title, limit=15)
+
+        similar_uris = []
+        for t in similar:
+            found = search_track(f"{t['artist']} {t['name']}")
+            if found:
+                similar_uris.append(found["uri"])
+
+        if not similar_uris:
+            # Last.fm не нашёл похожих (нишевый трек) — просто запускаем
+            # альбом трека как fallback, чтобы хоть что-то заиграло дальше
+            play_context_uri(track.get("album_uri"), offset_uri=track["uri"], device_id=device_id)
+            result = f"Не нашла похожие треки, включаю альбом: {track['name']}"
+            print(result)
+            return result
+
+        all_uris = [track["uri"]] + similar_uris
+        r = requests.put(
+            f"{API_BASE}/me/player/play",
+            headers=_auth_headers(),
+            params={"device_id": device_id},
+            json={"uris": all_uris[:50]},
+        )
+        if r.status_code not in (200, 204):
+            r.raise_for_status()
+
+        result = f"Запускаю волну от: {track['name']}"
+        print(result)
+        return result
+    except Exception as e:
+        print(f"[start_wave error] {e}")
+        return f"Не получилось запустить волну: {e}"
 
 
 if __name__ == "__main__":

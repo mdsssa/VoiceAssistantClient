@@ -167,6 +167,7 @@ def ask_llm(text, history):
 
     r = requests.post(LLM_URL, headers=LLM_HEADERS,
         json=_build_payload(history, "required", 300))
+    print(f"DEBUG raw response: {r.status_code} {r.text}")
     message = r.json()["choices"][0]["message"]
 
     if message.get("tool_calls"):

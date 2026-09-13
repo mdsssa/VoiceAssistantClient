@@ -43,6 +43,19 @@ TTS_URL = f"http://{SERVER}:8003/synthesize"
 
 SAMPLE_RATE = 16000
 
+
+
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "local")  # "local" или "groq"
+if LLM_PROVIDER == "groq":
+    LLM_URL = "https://api.groq.com/openai/v1/chat/completions"
+    LLM_MODEL = "openai/gpt-oss-20b"
+    LLM_HEADERS = {"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"}
+else:
+    LLM_URL = os.environ.get("LOCAL_LLM_URL", f"http://{SERVER}:8002/v1/chat/completions")
+    LLM_MODEL = None  # локальный llama-server модель не запрашивает явно
+    LLM_HEADERS = {}
+
+
 # SOUND_LISTENING_START = "/System/Library/Sounds/Pop.aiff"
 # SOUND_LISTENING_END = "/System/Library/Sounds/Tink.aiff"
 SOUND_LISTENING_START = "./sounds/readyToListenV2.mp3"
@@ -134,18 +147,25 @@ def trim_history(history):
     if len(rest) > HISTORY_LIMIT:
         rest = rest[-HISTORY_LIMIT:]
     return [system] + rest
+def _build_payload(messages, tool_choice, max_tokens):
+    payload = {
+        "messages": messages,
+        "tools": tools,
+        "tool_choice": tool_choice,
+        "temperature": 0.1,
+        "max_tokens": max_tokens,
+    }
+    if LLM_MODEL:
+        payload["model"] = LLM_MODEL
+    return payload
 
 
 def ask_llm(text, history):
     history.append({"role": "user", "content": text})
     history[:] = trim_history(history)
 
-    r = requests.post(LLM_URL, json={
-        "messages": history,
-        "tools": tools,
-        "tool_choice": "required",
-        "max_tokens": 300
-    })
+    r = requests.post(LLM_URL, headers=LLM_HEADERS,
+        json=_build_payload(history, "required", 300))
     message = r.json()["choices"][0]["message"]
 
     if message.get("tool_calls"):
@@ -153,37 +173,78 @@ def ask_llm(text, history):
         for call in message["tool_calls"]:
             fn_name = call["function"]["name"]
             fn_args = json.loads(call["function"]["arguments"])
-
             try:
                 result = AVAILABLE_FUNCTIONS[fn_name](**fn_args)
             except Exception as e:
                 result = f"Ошибка при вызове {fn_name}: {e}"
-
             history.append({
                 "role": "tool",
                 "tool_call_id": call["id"],
                 "content": result
             })
 
-        r2 = requests.post(LLM_URL, json={
-            "messages": history,
-            "tools": tools,
-            # "tool_choice": "none",
-            "max_tokens": 300
-            # "temperature": 0.1
-        })
+        r2 = requests.post(LLM_URL, headers=LLM_HEADERS,
+            json=_build_payload(history, "none", 150))
         final_message = r2.json()["choices"][0]["message"]
         reply = final_message.get("content") or ""
-
         history.append({"role": "assistant", "content": reply})
         print(final_message)
-        return reply.replace("Celsius" , "")
+        return reply.replace("Celsius", "")
     else:
         reply = message.get("content") or ""
         history.append({"role": "assistant", "content": reply})
         print(message)
-        return reply.replace("Celsius" , "")
+        return reply.replace("Celsius", "")
 
+#
+# def ask_llm(text, history):
+#     history.append({"role": "user", "content": text})
+#     history[:] = trim_history(history)
+#
+#     r = requests.post(LLM_URL, json={
+#         "messages": history,
+#         "tools": tools,
+#         "tool_choice": "required",
+#         "max_tokens": 300
+#     })
+#     message = r.json()["choices"][0]["message"]
+#
+#     if message.get("tool_calls"):
+#         history.append(message)
+#         for call in message["tool_calls"]:
+#             fn_name = call["function"]["name"]
+#             fn_args = json.loads(call["function"]["arguments"])
+#
+#             try:
+#                 result = AVAILABLE_FUNCTIONS[fn_name](**fn_args)
+#             except Exception as e:
+#                 result = f"Ошибка при вызове {fn_name}: {e}"
+#
+#             history.append({
+#                 "role": "tool",
+#                 "tool_call_id": call["id"],
+#                 "content": result
+#             })
+#
+#         r2 = requests.post(LLM_URL, json={
+#             "messages": history,
+#             "tools": tools,
+#             # "tool_choice": "none",
+#             "max_tokens": 300
+#             # "temperature": 0.1
+#         })
+#         final_message = r2.json()["choices"][0]["message"]
+#         reply = final_message.get("content") or ""
+#
+#         history.append({"role": "assistant", "content": reply})
+#         print(final_message)
+#         return reply.replace("Celsius" , "")
+#     else:
+#         reply = message.get("content") or ""
+#         history.append({"role": "assistant", "content": reply})
+#         print(message)
+#         return reply.replace("Celsius" , "")
+#
 
 def speak(text):
     spotifyConnect.pause_music()

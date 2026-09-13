@@ -93,7 +93,7 @@ def record_until_silence(threshold=800, silence_duration=2, max_duration=15):
     """Пишет звук, пока не наступит тишина после того, как человек начал говорить.
     На время записи ставит Spotify на паузу, чтобы музыка не забивала микрофон
     и не триггерила VAD как "пользователь говорит"."""
-    was_playing = pause_music()  # см. модификацию pause_music ниже — возвращает, было ли что играть
+    was_playing = pause_music()
 
     frames = []
     chunk_size = 1024
@@ -249,14 +249,14 @@ def ask_llm(text, history):
 #
 
 def speak(text):
-    spotifyConnect.pause_music()
+    wasPlaying = spotifyConnect.pause_music()
     r = requests.post(TTS_URL, json={"text": text})
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         f.write(r.content)
         path = f.name
     subprocess.run(["aplay", "-q", path])
     os.remove(path)
-    spotifyConnect.resume_music()
+    spotifyConnect.resume_music() if wasPlaying else None
 
 def one_exchange(history):
     audio = record_until_silence()

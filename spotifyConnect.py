@@ -22,7 +22,7 @@ TARGET_DEVICE_NAME = os.environ.get("SPOTIFY_TARGET_DEVICE")
 # dashboard (Redirect URIs). Локальный редирект для однократной ручной
 # авторизации на этой же машине.
 
-SCOPES =  "user-read-playback-state user-modify-playback-state user-library-modify"
+SCOPES = "user-read-playback-state user-modify-playback-state user-library-modify user-library-read"
 
 TOKEN_FILE = os.path.expanduser("~/.spotify_token_cache.json")
 

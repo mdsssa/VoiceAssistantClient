@@ -104,6 +104,14 @@ tools = [
         "description": "Добавить текущий играющий трек в избранное (Liked Songs)",
         "parameters": {"type": "object", "properties": {}}
     }
+},
+{
+    "type": "function",
+    "function": {
+        "name": "start_my_wave",
+        "description": "Включить волну — начать с самого первого лайкнутого трека и продолжить дальше похожей музыкой",
+        "parameters": {"type": "object", "properties": {}}
+    }
 }
 ]
 

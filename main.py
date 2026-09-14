@@ -168,8 +168,13 @@ def ask_llm(text, history):
     r = requests.post(LLM_URL, headers=LLM_HEADERS,
         json=_build_payload(history, 300))
     print(f"DEBUG raw response: {r.status_code} {r.text}")
-    message = r.json()["choices"][0]["message"]
-
+    try:
+        message = r.json()["choices"][0]["message"]
+    except KeyError:
+        message = r.json()["message"]
+    except Exception as e:
+        print(e)
+        message = "Произошла неизвестная ошибка"
     if message.get("tool_calls"):
         history.append(message)
         for call in message["tool_calls"]:
@@ -187,7 +192,13 @@ def ask_llm(text, history):
 
         r2 = requests.post(LLM_URL, headers=LLM_HEADERS,
             json=_build_payload(history, 150))
-        final_message = r2.json()["choices"][0]["message"]
+        try:
+            final_message = r.json()["choices"][0]["message"]
+        except KeyError:
+            final_message = r.json()["message"]
+        except Exception as e:
+            print(e)
+            final_message = "Произошла неизвестная ошибка"
         reply = final_message.get("content") or ""
         history.append({"role": "assistant", "content": reply})
         print(final_message)

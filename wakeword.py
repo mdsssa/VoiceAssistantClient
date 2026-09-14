@@ -10,7 +10,7 @@ import json
 accuracy = 0.6
 MODEL_PATH = os.path.expanduser("~/vosk-model-small-ru-0.22")
 SAMPLE_RATE = 16000
-WAKE_WORDS = ["кера", "кэра", "керра", "кэролайн"]
+WAKE_WORDS = ["кера", "кэра", "керра", "кэролайн" , "керолайн" , ]
 def load_common_words(path):
     with open(path, encoding="utf-8") as f:
         return f.read().split()
@@ -35,7 +35,7 @@ rec.SetWords(True)  # включает вывод confidence по каждому
 def callback(indata, frames, time, status):
     q.put(bytes(indata))
 
-print("👂 Слушаю фоном... скажи 'Кэра'")
+
 with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=8000, dtype='int16',
                         channels=1, callback=callback):
     while True:
@@ -55,7 +55,7 @@ with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=8000, dtype='int16',
 
 
             if any(w in text for w in WAKE_WORDS) and avg_conf > accuracy:
-                print(f"✨ Услышала имя! (conf={avg_conf:.2f})")
+                print(f"Finaly Heard! (conf={avg_conf:.2f})")
                 subprocess.run([PYTHON_BIN, MAIN_SCRIPT, "--single-turn"])
                 rec.Reset()
                 while not q.empty():

@@ -567,7 +567,6 @@ def start_my_wave(*_args, **_kwargs):
 
 if __name__ == "__main__":
     import sys
-
     if "--auth" in sys.argv:
         run_initial_auth()
     else:

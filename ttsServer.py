@@ -40,7 +40,7 @@ model_en, _ = torch.hub.load(
 )
 model_en.to(device)
 
-SPEAKER_RU = 'xenia'   # варианты: aidar, baya, kseniya, xenia, eugene, random
+SPEAKER_RU = 'baya'   # варианты: aidar, baya, kseniya, xenia, eugene, random
 SPEAKER_EN = 'en_0'    # варианты: en_0..en_117, random
 SAMPLE_RATE = 48000
 

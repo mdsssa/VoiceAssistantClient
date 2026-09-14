@@ -144,7 +144,6 @@ def get_access_token():
 def _auth_headers():
     return {"Authorization": f"Bearer {get_access_token()}"}
 
-
 def get_devices():
     """Список доступных Spotify Connect устройств (телефон, HeroBox и т.д.)"""
     r = requests.get(f"{API_BASE}/me/player/devices", headers=_auth_headers())
@@ -502,74 +501,69 @@ def seek_track(seconds):
         print(f"[seek_track error] {e}")
         return f"Не получилось перемотать трек: {e}"
 # "Моя волна" - импровизация
+def get_current_user_id():
+    """Получает Spotify user ID текущего аккаунта."""
+    r = requests.get(f"{API_BASE}/me", headers=_auth_headers())
+    r.raise_for_status()
+    return r.json()["id"]
 
-LASTFM_API_KEY = os.environ.get("LASTFM_API_KEY", "")
 
-def get_similar_tracks_lastfm(artist, track, limit=15):
+def get_first_liked_track():
+    """Возвращает самый первый добавленный трек в Liked Songs
+    (самый старый по дате добавления)."""
     r = requests.get(
-        "https://ws.audioscrobbler.com/2.0/",
-        params={
-            "method": "track.getsimilar",
-            "artist": artist,
-            "track": track,
-            "api_key": LASTFM_API_KEY,
-            "format": "json",
-            "limit": limit,
-        }
+        f"{API_BASE}/me/tracks",
+        headers=_auth_headers(),
+        params={"limit": 1}
     )
     r.raise_for_status()
-    data = r.json()
-    similar = data.get("similartracks", {}).get("track", [])
-    return [{"artist": t["artist"]["name"], "name": t["name"]} for t in similar]
+    total = r.json().get("total", 0)
+    if total == 0:
+        return None
+
+    r2 = requests.get(
+        f"{API_BASE}/me/tracks",
+        headers=_auth_headers(),
+        params={"limit": 1, "offset": total - 1}
+    )
+    r2.raise_for_status()
+    items = r2.json().get("items", [])
+    if not items:
+        return None
+
+    track = items[0]["track"]
+    artists = ", ".join(a["name"] for a in track["artists"])
+    return {
+        "uri": track["uri"],
+        "name": f"{artists} — {track['name']}",
+    }
 
 
-def start_wave(query):
-    """Аналог 'Моей волны' — ищет трек, находит похожие через Last.fm
-    (на основе реальных данных прослушиваний), ищет их в Spotify и
-    запускает очередь из найденного трека + похожих."""
+def start_my_wave(*_args, **_kwargs):
+    """Включает Liked Songs с позиции самого первого лайкнутого трека,
+    сразу пролистывает его, дальше идёт волна по коллекции + autoplay."""
     try:
-        track = search_track(query)
-        if not track:
-            return f"Не нашла трек по запросу: {query}"
+        seed = get_first_liked_track()
+        if not seed:
+            return "В избранном пока пусто, не от чего запускать волну"
 
         device_id = find_device_id(TARGET_DEVICE_NAME)
         if not device_id:
             return f"Не вижу устройство '{TARGET_DEVICE_NAME}' в списке Spotify Connect."
 
-        artist, title = track["name"].split(" — ", 1)
-        similar = get_similar_tracks_lastfm(artist, title, limit=15)
+        user_id = get_current_user_id()
+        collection_uri = f"spotify:user:{user_id}:collection"
 
-        similar_uris = []
-        for t in similar:
-            found = search_track(f"{t['artist']} {t['name']}")
-            if found:
-                similar_uris.append(found["uri"])
+        play_context_uri(collection_uri, offset_uri=seed["uri"], device_id=device_id)
+        time.sleep(1)
+        next_track(device_id=device_id)
 
-        if not similar_uris:
-            # Last.fm не нашёл похожих (нишевый трек) — просто запускаем
-            # альбом трека как fallback, чтобы хоть что-то заиграло дальше
-            play_context_uri(track.get("album_uri"), offset_uri=track["uri"], device_id=device_id)
-            result = f"Не нашла похожие треки, включаю альбом: {track['name']}"
-            print(result)
-            return result
-
-        all_uris = [track["uri"]] + similar_uris
-        r = requests.put(
-            f"{API_BASE}/me/player/play",
-            headers=_auth_headers(),
-            params={"device_id": device_id},
-            json={"uris": all_uris[:50]},
-        )
-        if r.status_code not in (200, 204):
-            r.raise_for_status()
-
-        result = f"Запускаю волну от: {track['name']}"
+        result = "Включаю волну от избранного"
         print(result)
         return result
     except Exception as e:
-        print(f"[start_wave error] {e}")
+        print(f"[start_my_wave error] {e}")
         return f"Не получилось запустить волну: {e}"
-
 
 if __name__ == "__main__":
     import sys

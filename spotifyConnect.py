@@ -531,7 +531,7 @@ def get_first_liked_track():
     if not items:
         return None
 
-    track = items[0]["track"]
+    track = items[-1]["track"]
     artists = ", ".join(a["name"] for a in track["artists"])
     return {
         "uri": track["uri"],

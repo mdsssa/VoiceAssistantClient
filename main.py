@@ -34,6 +34,7 @@ AVAILABLE_FUNCTIONS = {
     "seek_track": seek_track,
     "whats_playing" : whats_playing,
     "like_current_track" : like_current_track,
+    "start_my_wave": start_my_wave
 }
 
 # SERVER = "100.70.125.15"

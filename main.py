@@ -193,10 +193,11 @@ def ask_llm(text, history):
 
         r2 = requests.post(LLM_URL, headers=LLM_HEADERS,
             json=_build_payload(history, 150))
+        print(f"DEBUG r2 raw response: {r2.status_code} {r2.text}")
         try:
-            final_message = r.json()["choices"][0]["message"]
+            final_message = r2.json()["choices"][0]["message"]
         except KeyError:
-            final_message = r.json()["message"]
+            final_message = r2.json()["message"]
         except Exception as e:
             print(e)
             final_message = "Произошла неизвестная ошибка"

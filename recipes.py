@@ -1,15 +1,10 @@
-import requests
-from ddgs import DDGS
-from t_info import bot_token , chat_id
-TG_BOT_TOKEN = bot_token
-TG_CHAT_ID = chat_id
-
 import os
 import requests
 from ddgs import DDGS
+from t_info import bot_token , chat_id
 
-bot_token = os.environ.get("BOT_TOKEN")
-chat_id = os.environ.get("CHAT_ID")
+TG_BOT_TOKEN = bot_token
+TG_CHAT_ID = chat_id
 
 
 def search_and_send_recipe(query: str) -> str:
@@ -24,7 +19,6 @@ def search_and_send_recipe(query: str) -> str:
 
             best_res = None
 
-            # Чёрный список доменов (соцсети, видеохостинги, мусор)
             bad_domains = [
                 'pinterest', 'instagram', 'youtube', 'tiktok', 'facebook',
                 'vk.com', 'ok.ru', 'twitter', 'x.com', 'reddit' , 'vk.ru'
@@ -92,5 +86,3 @@ def search_and_send_recipe(query: str) -> str:
 
     except Exception as e:
         return f"Ошибка при поиске или отправке: {e}"
-
-print(search_and_send_recipe("какашечки"))

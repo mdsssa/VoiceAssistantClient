@@ -112,7 +112,24 @@ tools = [
         "description": "Включить волну — начать с самого первого лайкнутого трека и продолжить дальше похожей музыкой",
         "parameters": {"type": "object", "properties": {}}
     }
-}
+},
+{
+        "type": "function",
+        "function": {
+            "name": "search_and_send_recipe",
+            "description": "Ищет рецепт блюда в интернете и отправляет его пользователю в Telegram. Используй ВСЕГДА, когда пользователь просит рецепт, спрашивает как что-то приготовить или упоминает еду.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Что именно ищем. Например: 'паста карбонара', 'блины на молоке', 'салат цезарь'"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    }
 ]
 
 WEATHER_CODE_DESCRIPTIONS = {

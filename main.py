@@ -18,6 +18,7 @@ from spotifyConnect import (
     seek_track,
     start_my_wave
 )
+from recipes import search_and_send_recipe
 from tools import tools , WEATHER_CODE_DESCRIPTIONS
 from weather import get_weather
 from spotifyConnect import whats_playing, like_current_track
@@ -34,7 +35,8 @@ AVAILABLE_FUNCTIONS = {
     "seek_track": seek_track,
     "whats_playing" : whats_playing,
     "like_current_track" : like_current_track,
-    "start_my_wave": start_my_wave
+    "start_my_wave": start_my_wave ,
+    "search_and_send_recipe": search_and_send_recipe
 }
 
 # SERVER = "100.70.125.15"
@@ -47,7 +49,7 @@ SAMPLE_RATE = 16000
 
 
 
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "local")  # "local" или "groq"
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "local")
 if LLM_PROVIDER == "groq":
     LLM_URL = "https://api.groq.com/openai/v1/chat/completions"
     LLM_MODEL = "openai/gpt-oss-20b"

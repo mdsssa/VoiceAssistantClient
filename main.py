@@ -56,7 +56,7 @@ if LLM_PROVIDER == "groq":
     LLM_HEADERS = {"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"}
 else:
     LLM_URL = os.environ.get("LOCAL_LLM_URL", f"http://{SERVER}:8002/v1/chat/completions")
-    LLM_MODEL = None  # локальный llama-server модель не запрашивает явно
+    LLM_MODEL = None
     LLM_HEADERS = {}
 
 
@@ -94,7 +94,7 @@ SYSTEM_PROMPT = (
 "кстати , когда я тебя прошу включать музыку , не всегда к сожалению тебе поступают правильные данные о названии исполнителя/песни , так что пытайся подгонять то , что я говорю под именна реальных исполнителей/названия песен (например devtones на входе - это deftones"
 )
 
-def record_until_silence(threshold=800, silence_duration=2, max_duration=15):
+def record_until_silence(threshold=800, silence_duration=1.5, max_duration=15):
     """Пишет звук, пока не наступит тишина после того, как человек начал говорить.
     На время записи ставит Spotify на паузу, чтобы музыка не забивала микрофон
     и не триггерила VAD как "пользователь говорит"."""
@@ -317,3 +317,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+else:
+    pass

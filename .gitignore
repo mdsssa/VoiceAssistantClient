@@ -3,5 +3,5 @@
 .env
 justtest.py
 wakeConfig.json
-_pycache__
+__pycache__
 

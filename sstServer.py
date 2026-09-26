@@ -1,13 +1,3 @@
-"""
-stt_server.py
-
-Локальный STT-сервер на faster-whisper — совместим с существующим
-клиентским кодом (main.py), который шлёт multipart file на /transcribe
-и ждёт {"text": "..."}.
-
-Запуск:
-    python3 stt_server.py
-"""
 
 from flask import Flask, request, jsonify
 from faster_whisper import WhisperModel
@@ -16,7 +6,7 @@ import os
 
 app = Flask(__name__)
 
-# "small" — разумный баланс скорости/качества для N-series CPU.
+#"small" — разумный баланс скорости/качества для N-series CPU.
 # Если будет слишком медленно — попробуй "base".
 model = WhisperModel("small", device="cpu", compute_type="int8")
 

@@ -154,7 +154,7 @@ def trim_history(history):
         rest = rest[-HISTORY_LIMIT:]
     return [system] + rest
 
-def _build_payload(messages, max_tokens):
+def _build_payload(messages, max_tokens) -> dict:
     payload = {
         "messages": messages,
         "tools": tools,
@@ -166,7 +166,7 @@ def _build_payload(messages, max_tokens):
     return payload
 
 
-def ask_llm(text, history):
+def ask_llm(text, history) -> str:
     history.append({"role": "user", "content": text})
     history[:] = trim_history(history)
 
@@ -215,55 +215,6 @@ def ask_llm(text, history):
         print(message)
         return reply.replace("Celsius", "")
 
-#
-# def ask_llm(text, history):
-#     history.append({"role": "user", "content": text})
-#     history[:] = trim_history(history)
-#
-#     r = requests.post(LLM_URL, json={
-#         "messages": history,
-#         "tools": tools,
-#         "tool_choice": "required",
-#         "max_tokens": 300
-#     })
-#     message = r.json()["choices"][0]["message"]
-#
-#     if message.get("tool_calls"):
-#         history.append(message)
-#         for call in message["tool_calls"]:
-#             fn_name = call["function"]["name"]
-#             fn_args = json.loads(call["function"]["arguments"])
-#
-#             try:
-#                 result = AVAILABLE_FUNCTIONS[fn_name](**fn_args)
-#             except Exception as e:
-#                 result = f"Ошибка при вызове {fn_name}: {e}"
-#
-#             history.append({
-#                 "role": "tool",
-#                 "tool_call_id": call["id"],
-#                 "content": result
-#             })
-#
-#         r2 = requests.post(LLM_URL, json={
-#             "messages": history,
-#             "tools": tools,
-#             # "tool_choice": "none",
-#             "max_tokens": 300
-#             # "temperature": 0.1
-#         })
-#         final_message = r2.json()["choices"][0]["message"]
-#         reply = final_message.get("content") or ""
-#
-#         history.append({"role": "assistant", "content": reply})
-#         print(final_message)
-#         return reply.replace("Celsius" , "")
-#     else:
-#         reply = message.get("content") or ""
-#         history.append({"role": "assistant", "content": reply})
-#         print(message)
-#         return reply.replace("Celsius" , "")
-#
 
 def speak(text):
     wasPlaying = spotifyConnect.pause_music()
@@ -275,7 +226,7 @@ def speak(text):
     os.remove(path)
     spotifyConnect.resume_music() if wasPlaying else None
 
-def one_exchange(history):
+def one_exchange(history)->bool:
     audio = record_until_silence()
     if audio is None:
         return False
@@ -297,16 +248,13 @@ def main():
     parser.add_argument("--single-turn", action="store_true")
     args = parser.parse_args()
 
-    # История живёт только в рамках текущего процесса — никакого файла на
-    # диске. Перезапустил скрипт — контекст чистый, старые галлюцинации
-    # и отладочный мусор с прошлых сессий никуда не тащатся.
     history = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     if args.single_turn:
         one_exchange(history)
         return
 
-    print("=== Кэра готова. Ctrl+C для выхода ===")
+    print("Кэра готова.")
     try:
         while True:
             input("Нажми Enter чтобы начать говорить...")

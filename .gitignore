@@ -5,3 +5,4 @@ justtest.py
 wakeConfig.json
 __pycache__
 
+.aider*

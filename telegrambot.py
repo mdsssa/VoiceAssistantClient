@@ -10,8 +10,8 @@ chat_id = os.environ.get("CHAT_ID")
 
 bot = telebot.TeleBot(str(bot_token))
 
-def send_message(message):
-    bot.send_message(chat_id = chat_id, text= message , parse_mode='markdown')
+# def send_message(message):
+#     bot.send_message(chat_id = chat_id, text= message , parse_mode='markdown')
 
 
 @bot.message_handler()
@@ -21,6 +21,7 @@ def handler(message):
 
 
 if __name__ == "main":
+    print(True)
     bot.polling()
 
     

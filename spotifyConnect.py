@@ -18,9 +18,8 @@ CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 REDIRECT_URI = os.environ.get("REDIRECT_URI")
 TARGET_DEVICE_NAME = os.environ.get("SPOTIFY_TARGET_DEVICE")
-# Должен ТОЧНО совпадать с тем, что вписан в настройках приложения на
-# dashboard (Redirect URIs). Локальный редирект для однократной ручной
-# авторизации на этой же машине.
+
+
 
 SCOPES = "user-read-playback-state user-modify-playback-state user-library-modify user-library-read"
 
@@ -569,5 +568,15 @@ if __name__ == "__main__":
     import sys
     if "--auth" in sys.argv:
         run_initial_auth()
+    if "--devices" in sys.argv:
+        
+        for i , device in enumerate(get_devices()):
+            device_info = ""
+            for j in device:
+                device_info+=f"{j}:{device[j]}\n"
+            print(f'Device {i}\n\n{device_info}' , end = '\n')
+    
+    
+
     else:
-        print("Использование: python3 spotify_control.py --auth")
+        print("")

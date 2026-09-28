@@ -6,3 +6,4 @@ wakeConfig.json
 __pycache__
 
 .aider*
+sort_downloads.py

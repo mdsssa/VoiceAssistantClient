@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from main import ask_llm , trim_history
 
 
+
 load_dotenv()
 bot_token = os.environ.get("BOT_TOKEN")
 chat_id = os.environ.get("CHAT_ID")
@@ -19,9 +20,4 @@ def handler(message):
     llmResponse = ask_llm(message.text , [])
     bot.reply_to(message , llmResponse);
 
-
-if __name__ == "main":
-    print(True)
-    bot.polling()
-
-    
+bot.polling()

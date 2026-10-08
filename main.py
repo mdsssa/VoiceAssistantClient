@@ -16,12 +16,15 @@ from spotifyConnect import (
     previous_music_track,
     change_volume,
     seek_track,
-    start_my_wave
+    start_my_wave,
+    whats_playing,
+    like_current_track
 )
 from recipes import search_and_send_recipe
 from tools import tools , WEATHER_CODE_DESCRIPTIONS
 from weather import get_weather
-from spotifyConnect import whats_playing, like_current_track
+
+
 
 
 AVAILABLE_FUNCTIONS = {

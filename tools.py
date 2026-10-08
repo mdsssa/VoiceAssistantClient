@@ -129,7 +129,48 @@ tools = [
                 "required": ["query"]
             }
         }
+    },
+{
+    "type": "function",
+    "function": {
+        "name": "set_timer",
+        "description": "Поставить таймер на N минут",
+        "parameters": {
+            "type": "object",
+            "properties": {"minutes": {"type": "number", "description": "Через сколько минут сработает таймер"}},
+            "required": ["minutes"]
+        }
     }
+},
+{
+    "type": "function",
+    "function": {
+        "name": "set_alarm",
+        "description": "Поставить будильник на конкретное время",
+        "parameters": {
+            "type": "object",
+            "properties": {"time_str": {"type": "string", "description": "Время в формате ЧЧ:ММ, например '07:30'"}},
+            "required": ["time_str"]
+        }
+    }
+},
+{
+    "type": "function",
+    "function": {
+        "name": "cancel_all_timers",
+        "description": "Отменить все активные таймеры и будильники",
+        "parameters": {"type": "object", "properties": {}}
+    }
+},
+{
+    "type": "function",
+    "function": {
+        "name": "list_timers",
+        "description": "Узнать, какие таймеры и будильники сейчас активны",
+        "parameters": {"type": "object", "properties": {}}
+    }
+}
+
 ]
 
 WEATHER_CODE_DESCRIPTIONS = {

@@ -16,16 +16,13 @@ from spotifyConnect import (
     previous_music_track,
     change_volume,
     seek_track,
-    start_my_wave,
-    whats_playing,
-    like_current_track
+    start_my_wave
 )
 from recipes import search_and_send_recipe
 from tools import tools , WEATHER_CODE_DESCRIPTIONS
 from weather import get_weather
-
-
-
+from spotifyConnect import whats_playing, like_current_track
+from timers import set_timer, set_alarm, cancel_all_timers, list_timers
 
 AVAILABLE_FUNCTIONS = {
     "get_weather": get_weather,
@@ -39,7 +36,11 @@ AVAILABLE_FUNCTIONS = {
     "whats_playing" : whats_playing,
     "like_current_track" : like_current_track,
     "start_my_wave": start_my_wave ,
-    "search_and_send_recipe": search_and_send_recipe
+    "search_and_send_recipe": search_and_send_recipe,
+    "set_timer" : set_timer ,
+    "set_alarm": set_alarm ,
+    "cancel_all_timers":cancel_all_timers,
+    "list_timers":list_timers,
 }
 
 # SERVER = "100.70.125.15"
@@ -97,6 +98,10 @@ SYSTEM_PROMPT = (
 "Если просят включить волну / что-то похожее на любимое / что-то в своём духе — используй start_my_wave. "
 "Так же я живу в томске , так что при запросе погоды без указания города бери его за основу"
 "кстати , когда я тебя прошу включать музыку , не всегда к сожалению тебе поступают правильные данные о названии исполнителя/песни , так что пытайся подгонять то , что я говорю под именна реальных исполнителей/названия песен (например devtones на входе - это deftones"
+"Если просят поставить таймер на N минут — используй set_timer. "
+"Если просят будильник на время — используй set_alarm. "
+"Если просят отменить таймеры/будильники — cancel_all_timers. "
+"Если спрашивают про активные таймеры — list_timers."
 )
 
 

@@ -1,14 +1,13 @@
 import telebot
 import os
 from dotenv import load_dotenv
-from main import ask_llm , trim_history
+from main import ask_llm , trim_history , SYSTEM_PROMPT
 
-history = []
+history = [{"role": "system", "content": SYSTEM_PROMPT}]
 
 load_dotenv()
 bot_token = os.environ.get("BOT_TOKEN")
 chat_id = os.environ.get("CHAT_ID")
-
 bot = telebot.TeleBot(str(bot_token))
 
 

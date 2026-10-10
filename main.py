@@ -181,7 +181,6 @@ def _build_payload(messages, max_tokens) -> dict:
 def ask_llm(text, history) -> str:
     history.append({"role": "user", "content": text})
     history[:] = trim_history(history)
-
     r = requests.post(LLM_URL, headers=LLM_HEADERS,
         json=_build_payload(history, 300))
     print(f"DEBUG raw response: {r.status_code} {r.text}")

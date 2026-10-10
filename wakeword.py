@@ -1,62 +1,48 @@
-import sounddevice as sd
-import queue
-import json
-import subprocess
+"""
+Wake word «Кэра» на livekit-wakeword (замена Vosk-версии).
+
+После срабатывания микрофон освобождается, запускается main.py --single-turn,
+затем детектор создаётся заново и слушает дальше.
+"""
+import asyncio
 import os
-from vosk import Model, KaldiRecognizer
 import platform
-import json
+import subprocess
 
-accuracy = 0.6
-MODEL_PATH = os.path.expanduser("~/vosk-model-small-ru-0.22")
-SAMPLE_RATE = 16000
-WAKE_WORDS = ["кера", "кэра", "керра", "кэролайн" , "керолайн" , ]
-def load_common_words(path):
-    with open(path, encoding="utf-8") as f:
-        return f.read().split()
+from livekit.wakeword import WakeWordListener, WakeWordModel
 
-COMMON_WORDS = load_common_words(os.path.expanduser("~/VoiceAssistantClient/common_words_ru.txt"))
+MODEL_PATH = os.path.expanduser("~/VoiceAssistantClient/kera.onnx")
+THRESHOLD = 0.5   # на тестах было 0.5-0.77; ловит плохо -> 0.35-0.4, ложные -> 0.6
+DEBOUNCE = 2.0    # секунды тишины после срабатывания
 
 if platform.system() == "Darwin":
     PYTHON_BIN = "python3"
-    MAIN_SCRIPT = os.path.expanduser("~/VoiceAssistantClient/main.py")
 else:
     PYTHON_BIN = os.path.expanduser("~/VoiceAssistantClient/venv/bin/python3")
-    MAIN_SCRIPT = os.path.expanduser("~/VoiceAssistantClient/main.py")
-
-model = Model(MODEL_PATH)
+MAIN_SCRIPT = os.path.expanduser("~/VoiceAssistantClient/main.py")
 
 
-grammar = json.dumps(WAKE_WORDS + COMMON_WORDS + ["[unk]"], ensure_ascii=False)
-rec = KaldiRecognizer(model, SAMPLE_RATE, grammar)
-
-q = queue.Queue()
-rec.SetWords(True)  # включает вывод confidence по каждому слову
-def callback(indata, frames, time, status):
-    q.put(bytes(indata))
+async def wait_for_wakeword():
+    # Новая модель на каждый цикл, чтобы в буфере не оставалось старого аудио
+    model = WakeWordModel(models=[MODEL_PATH])
+    async with WakeWordListener(model, threshold=THRESHOLD, debounce=DEBOUNCE) as listener:
+        return await listener.wait_for_detection()
 
 
-with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=8000, dtype='int16',
-                        channels=1, callback=callback):
+async def main():
+    print("Жду 'Кэра'...")
     while True:
-        data = q.get()
-        if rec.AcceptWaveform(data):
-            result = json.loads(rec.Result())
-            words = result.get("result", [])
-            text = result.get("text", "").lower()
-
-            if words:
-    
-                avg_conf = sum(w.get("conf", 0) for w in words) / len(words)
-            else:
-                avg_conf = 0
-
-            print(f"heard: '{text}' conf: {avg_conf:.2f}")
+        detection = await wait_for_wakeword()
+        print(f"Finaly Heard! (conf={detection.confidence:.2f})")
+        # Микрофон уже свободен (вышли из async with), main.py может его занять
+        await asyncio.to_thread(
+            subprocess.run, [PYTHON_BIN, MAIN_SCRIPT, "--single-turn"]
+        )
+        print("Жду 'Кэра'...")
 
 
-            if any(w in text for w in WAKE_WORDS) and avg_conf > accuracy:
-                print(f"Finaly Heard! (conf={avg_conf:.2f})")
-                subprocess.run([PYTHON_BIN, MAIN_SCRIPT, "--single-turn"])
-                rec.Reset()
-                while not q.empty():
-                    q.get_nowait()
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

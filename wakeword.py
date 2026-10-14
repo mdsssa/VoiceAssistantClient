@@ -1,9 +1,4 @@
-"""
-Wake word «Кэра» на livekit-wakeword (замена Vosk-версии).
 
-После срабатывания микрофон освобождается, запускается main.py --single-turn,
-затем детектор создаётся заново и слушает дальше.
-"""
 import asyncio
 import os
 import platform

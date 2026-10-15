@@ -1,29 +1,26 @@
-
 import asyncio
 import os
 import platform
 import subprocess
-import time
 from collections import deque
 
 import numpy as np
+import onnxruntime as ort
 from livekit.wakeword import WakeWordModel
 
 MODEL_PATH = os.path.expanduser("~/VoiceAssistantClient/kera.onnx")
 MODEL_NAME = "kera"          # ключ в scores = имя файла модели без .onnx
-THRESHOLD = 0.35             # шум на сервере <0.05, слово 0.4-0.8; ложные -> 0.5, не ловит -> 0.25
-DEBOUNCE = 2.0               # секунды между срабатываниями
+THRESHOLD = 0.35             # шум <0.05, слово 0.4-0.8; ложные -> 0.5, не ловит -> 0.25
+DEBOUNCE = 2.0               # секунды между срабатываниями (для macOS-слушателя)
 
 # На сервере звуком управляет PipeWire (он держит USB-микрофон), поэтому читаем
-# через "default" -> PipeWire. Нужный микрофон выбирается как источник по
-# умолчанию: wpctl set-default <id источника из `wpctl status`>.
-# Можно переопределить: export KERA_MIC=...
-
-
+# через "default" -> PipeWire. Можно переопределить: export KERA_MIC=...
 LINUX_MIC = os.environ.get("KERA_MIC", "default")
 FRAME_SAMPLES = 1280         # 80 мс при 16 кГц, как в WakeWordListener
 FRAME_BYTES = FRAME_SAMPLES * 2
-CHUNK_FRAMES = 25            # модель смотрит окно 2 с (25 кадров по 80 мс), как WakeWordListener
+CHUNK_FRAMES = 25            # модель смотрит окно 2 с (25 кадров по 80 мс)
+PREDICT_EVERY = 4            # считать модель раз в 4 кадра (320 мс); не ловит -> 3 или 2
+GATE_RMS = 700               # тише этого (за последние 2 с) модель не считаем; 0 = выкл.
 
 IS_MAC = platform.system() == "Darwin"
 if IS_MAC:
@@ -33,13 +30,22 @@ else:
 MAIN_SCRIPT = os.path.expanduser("~/VoiceAssistantClient/main.py")
 
 
+def make_model() -> WakeWordModel:
+    so = ort.SessionOptions()
+    so.intra_op_num_threads = 1
+    so.inter_op_num_threads = 1
+    return WakeWordModel(models=[MODEL_PATH], sess_options=so)
+
+
 # ---------- Linux: arecord ----------
 def wait_for_wakeword_linux() -> float:
-    model = WakeWordModel(models=[MODEL_PATH])
+    model = make_model()
     cmd = ["arecord", "-q", "-D", LINUX_MIC, "-f", "S16_LE",
            "-r", "16000", "-c", "1", "-t", "raw"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     frames = deque(maxlen=CHUNK_FRAMES)
+    rms_hist = deque(maxlen=CHUNK_FRAMES)
+    step = 0
     try:
         while True:
             buf = proc.stdout.read(FRAME_BYTES)
@@ -48,9 +54,16 @@ def wait_for_wakeword_linux() -> float:
                 raise RuntimeError(
                     f"arecord остановился (устройство {LINUX_MIC}): {err or 'нет вывода'}"
                 )
-            frames.append(np.frombuffer(buf, dtype=np.int16))
+            frame = np.frombuffer(buf, dtype=np.int16)
+            frames.append(frame)
+            rms_hist.append(float(np.sqrt(np.mean(frame.astype(np.float32) ** 2))))
             if len(frames) < CHUNK_FRAMES:
                 continue  # копим первые 2 секунды
+            step += 1
+            if step % PREDICT_EVERY:
+                continue
+            if GATE_RMS and max(rms_hist) < GATE_RMS:
+                continue  # тишина, модель не трогаем
             scores = model.predict(np.concatenate(list(frames)))
             conf = float(scores.get(MODEL_NAME, 0.0))
             if conf >= THRESHOLD:
@@ -64,7 +77,7 @@ def wait_for_wakeword_linux() -> float:
 async def wait_for_wakeword_mac() -> float:
     from livekit.wakeword import WakeWordListener
 
-    model = WakeWordModel(models=[MODEL_PATH])
+    model = make_model()
     async with WakeWordListener(model, threshold=THRESHOLD, debounce=DEBOUNCE) as listener:
         detection = await listener.wait_for_detection()
         return detection.confidence

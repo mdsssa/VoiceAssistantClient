@@ -1,8 +1,8 @@
 
 import os
 import subprocess
-import sys
 import time
+from collections import deque
 from importlib.metadata import version
 
 import numpy as np
@@ -10,10 +10,10 @@ from livekit.wakeword import WakeWordModel
 
 MODEL_PATH = os.path.expanduser("~/VoiceAssistantClient/kera.onnx")
 MIC = os.environ.get("KERA_MIC", "default")
-USE_FLOAT = len(sys.argv) > 1 and sys.argv[1] == "float"
-FRAME = 1280  # 80 мс
+FRAME = 1280        # 80 мс
+CHUNK_FRAMES = 25   # окно 2 с, как в WakeWordListener
 
-print("livekit-wakeword", version("livekit-wakeword"), "| формат:", "float32" if USE_FLOAT else "int16")
+print("livekit-wakeword", version("livekit-wakeword"))
 print("model size:", os.path.getsize(MODEL_PATH), "байт | микрофон:", MIC)
 
 model = WakeWordModel(models=[MODEL_PATH])
@@ -22,6 +22,7 @@ proc = subprocess.Popen(
     stdout=subprocess.PIPE,
 )
 
+frames = deque(maxlen=CHUNK_FRAMES)
 best = 0.0
 rms_max = 0.0
 t0 = time.time()
@@ -33,16 +34,16 @@ try:
             break
         frame = np.frombuffer(buf, dtype=np.int16)
         rms_max = max(rms_max, float(np.sqrt(np.mean(frame.astype(np.float64) ** 2))))
-        data = frame.astype(np.float32) / 32768.0 if USE_FLOAT else frame
-        scores = model.predict(data)
+        frames.append(frame)
+        if len(frames) < CHUNK_FRAMES:
+            continue
+        scores = model.predict(np.concatenate(list(frames)))
         try:
-            top = max(float(v) for v in scores.values())
-            shown = {k: round(float(v), 3) for k, v in scores.items()}
+            best = max(best, max(float(v) for v in scores.values()))
         except Exception:
-            top, shown = 0.0, scores
-        best = max(best, top)
+            pass
         if time.time() - t0 >= 0.5:
-            print(f"rms_max={rms_max:7.0f}  score_max={best:.3f}  scores={shown}")
+            print(f"rms_max={rms_max:7.0f}  score_max={best:.3f}  scores={scores}")
             best, rms_max, t0 = 0.0, 0.0, time.time()
 except KeyboardInterrupt:
     pass

@@ -4,22 +4,26 @@ import os
 import platform
 import subprocess
 import time
+from collections import deque
 
 import numpy as np
 from livekit.wakeword import WakeWordModel
 
 MODEL_PATH = os.path.expanduser("~/VoiceAssistantClient/kera.onnx")
 MODEL_NAME = "kera"          # ключ в scores = имя файла модели без .onnx
-THRESHOLD = 0.5              # ловит плохо -> 0.35-0.4, ложные -> 0.6
+THRESHOLD = 0.35             # шум на сервере <0.05, слово 0.4-0.8; ложные -> 0.5, не ловит -> 0.25
 DEBOUNCE = 2.0               # секунды между срабатываниями
 
 # На сервере звуком управляет PipeWire (он держит USB-микрофон), поэтому читаем
 # через "default" -> PipeWire. Нужный микрофон выбирается как источник по
 # умолчанию: wpctl set-default <id источника из `wpctl status`>.
 # Можно переопределить: export KERA_MIC=...
+
+
 LINUX_MIC = os.environ.get("KERA_MIC", "default")
 FRAME_SAMPLES = 1280         # 80 мс при 16 кГц, как в WakeWordListener
 FRAME_BYTES = FRAME_SAMPLES * 2
+CHUNK_FRAMES = 25            # модель смотрит окно 2 с (25 кадров по 80 мс), как WakeWordListener
 
 IS_MAC = platform.system() == "Darwin"
 if IS_MAC:
@@ -35,7 +39,7 @@ def wait_for_wakeword_linux() -> float:
     cmd = ["arecord", "-q", "-D", LINUX_MIC, "-f", "S16_LE",
            "-r", "16000", "-c", "1", "-t", "raw"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    last = 0.0
+    frames = deque(maxlen=CHUNK_FRAMES)
     try:
         while True:
             buf = proc.stdout.read(FRAME_BYTES)
@@ -44,10 +48,12 @@ def wait_for_wakeword_linux() -> float:
                 raise RuntimeError(
                     f"arecord остановился (устройство {LINUX_MIC}): {err or 'нет вывода'}"
                 )
-            frame = np.frombuffer(buf, dtype=np.int16)
-            scores = model.predict(frame)
+            frames.append(np.frombuffer(buf, dtype=np.int16))
+            if len(frames) < CHUNK_FRAMES:
+                continue  # копим первые 2 секунды
+            scores = model.predict(np.concatenate(list(frames)))
             conf = float(scores.get(MODEL_NAME, 0.0))
-            if conf > THRESHOLD and time.time() - last > DEBOUNCE:
+            if conf >= THRESHOLD:
                 return conf
     finally:
         proc.terminate()

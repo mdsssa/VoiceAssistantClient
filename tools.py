@@ -169,6 +169,27 @@ tools = [
         "description": "Узнать, какие таймеры и будильники сейчас активны",
         "parameters": {"type": "object", "properties": {}}
     }
+},
+{
+    "type": "function",
+    "function": {
+        "name": "web_search",
+        "description": (
+            "Поиск актуальной информации в интернете: новости, факты, цены, "
+            "события, всё, чего ты не знаешь или что могло измениться. "
+            "Вызывай, когда нужны свежие или точные данные."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Короткий поисковый запрос, как для поисковика",
+                }
+            },
+            "required": ["query"],
+        },
+    },
 }
 
 ]

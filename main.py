@@ -1,3 +1,4 @@
+from web_search import web_search
 import sounddevice as sd
 import soundfile as sf
 import requests
@@ -23,6 +24,8 @@ from tools import tools , WEATHER_CODE_DESCRIPTIONS
 from weather import get_weather
 from spotifyConnect import whats_playing, like_current_track
 from timers import set_timer, set_alarm, cancel_all_timers, list_timers
+from web_search import web_search
+
 
 AVAILABLE_FUNCTIONS = {
     "get_weather": get_weather,
@@ -41,7 +44,7 @@ AVAILABLE_FUNCTIONS = {
     "set_alarm": set_alarm ,
     "cancel_all_timers":cancel_all_timers,
     "list_timers":list_timers,
-
+    "web_search":web_search
 }
 
 # SERVER = "100.70.125.15"
@@ -102,6 +105,7 @@ SYSTEM_PROMPT = (
 "Если просят будильник на время — используй set_alarm. "
 "Если просят отменить таймеры/будильники — cancel_all_timers. "
 "Если спрашивают про активные таймеры — list_timers."
+"Если тебе недостаточно информации в твоих базах (у тебя они устаревшие) - для получения новой информации используй web_search"
 )
 
 

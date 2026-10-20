@@ -9,18 +9,16 @@ import onnxruntime as ort
 from livekit.wakeword import WakeWordModel
 
 MODEL_PATH = os.path.expanduser("~/VoiceAssistantClient/kera.onnx")
-MODEL_NAME = "kera"          # ключ в scores = имя файла модели без .onnx
-THRESHOLD = 0.35             # шум <0.05, слово 0.4-0.8; ложные -> 0.5, не ловит -> 0.25
-DEBOUNCE = 2.0               # секунды между срабатываниями (для macOS-слушателя)
+MODEL_NAME = "kera"    
+THRESHOLD = 0.35             
+DEBOUNCE = 2.0               
 
-# На сервере звуком управляет PipeWire (он держит USB-микрофон), поэтому читаем
-# через "default" -> PipeWire. Можно переопределить: export KERA_MIC=...
 LINUX_MIC = os.environ.get("KERA_MIC", "default")
 FRAME_SAMPLES = 1280         # 80 мс при 16 кГц, как в WakeWordListener
 FRAME_BYTES = FRAME_SAMPLES * 2
-CHUNK_FRAMES = 25            # модель смотрит окно 2 с (25 кадров по 80 мс)
-PREDICT_EVERY = 4            # считать модель раз в 4 кадра (320 мс); не ловит -> 3 или 2
-GATE_RMS = 700               # тише этого (за последние 2 с) модель не считаем; 0 = выкл.
+CHUNK_FRAMES = 25            
+PREDICT_EVERY = 4            
+GATE_RMS = 700               
 
 IS_MAC = platform.system() == "Darwin"
 if IS_MAC:
@@ -37,7 +35,7 @@ def make_model() -> WakeWordModel:
     return WakeWordModel(models=[MODEL_PATH], sess_options=so)
 
 
-# ---------- Linux: arecord ----------
+
 def wait_for_wakeword_linux() -> float:
     model = make_model()
     cmd = ["arecord", "-q", "-D", LINUX_MIC, "-f", "S16_LE",

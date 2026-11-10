@@ -1,4 +1,3 @@
-
 import os
 import subprocess
 import time
@@ -10,8 +9,8 @@ from livekit.wakeword import WakeWordModel
 
 MODEL_PATH = os.path.expanduser("~/VoiceAssistantClient/kera.onnx")
 MIC = os.environ.get("KERA_MIC", "default")
-FRAME = 1280        # 80 мс
-CHUNK_FRAMES = 25   # окно 2 с, как в WakeWordListener
+FRAME = 1280
+CHUNK_FRAMES = 25
 
 print("livekit-wakeword", version("livekit-wakeword"))
 print("model size:", os.path.getsize(MODEL_PATH), "байт | микрофон:", MIC)

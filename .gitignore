@@ -7,3 +7,5 @@ __pycache__
 .aider*
 sort_downloads.py
 test.py
+test_tts.waw
+venv/

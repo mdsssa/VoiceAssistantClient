@@ -38,8 +38,9 @@ bot = telebot.TeleBot(str(bot_token))
 @bot.message_handler()
 def handler(message):
     llmResponse = ask_llm(message.text , history)
-    bot.reply_to(message , llmResponse.replace("**" , "*") , parse_mode = "Markdown");
-    trim_history(history)
+    if len(llmResponse) != 0:
+        bot.reply_to(message , llmResponse.replace("**" , "*") , parse_mode = "Markdown");
+        trim_history(history)
 
 
 bot.polling()

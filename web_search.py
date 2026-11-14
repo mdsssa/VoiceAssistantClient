@@ -1,4 +1,4 @@
-    from ddgs import DDGS
+from ddgs import DDGS
 
 
 def web_search(query: str, max_results: int = 4) -> str:

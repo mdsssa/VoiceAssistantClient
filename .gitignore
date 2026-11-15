@@ -1,11 +1,43 @@
+# --- macOS ---
 .DS_Store
+._*
+
+# --- IDE ---
 .idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- виртуальные окружения и секреты ---
 .env
-justtest.py
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# --- состояние и токены ---
+.timers.json
 wakeConfig.json
-__pycache__
-.aider*
+
+# --- тестовые артефакты и логи ---
+test_tts.wav
+*.log
+
+# --- локальные утилиты/черновики ---
 sort_downloads.py
 test.py
-test_tts.waw
-venv/
+.aider*

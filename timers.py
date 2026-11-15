@@ -1,10 +1,8 @@
-
 import json
 import os
-import time
 from datetime import datetime, timedelta
 
-TIMERS_FILE = os.path.expanduser("~/VoiceAssistantClient/.timers.json")
+TIMERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".timers.json")
 
 
 def _load():

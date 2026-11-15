@@ -26,8 +26,6 @@ def web_search(query: str, max_results: int = 4) -> str:
     return "\n".join(lines)
 
 
-
-
 if __name__ == "__main__":
     import sys
 

@@ -1,5 +1,5 @@
 """
-tts_server.py
+ttsServer.py
 
 Локальный TTS-сервер на Silero с поддержкой смешанного русско-английского
 текста — держит две модели (ru + en), разбивает реплику на куски по
@@ -7,7 +7,7 @@ tts_server.py
 склеивает результат в один WAV.
 
 Запуск:
-    python3 tts_server.py
+    python3 ttsServer.py
 """
 
 from flask import Flask, request, send_file
@@ -22,30 +22,27 @@ app = Flask(__name__)
 device = torch.device('cpu')
 torch.set_num_threads(4)  # подстрой под реальное число ядер HeroBox
 
-print("Загружаю русскую модель Silero...")
-model_ru, _ = torch.hub.load(
-    repo_or_dir='snakers4/silero-models',
-    model='silero_tts',
-    language='ru',
-    speaker='v4_ru'
-)
-model_ru.to(device)
-
-print("Загружаю английскую модель Silero...")
-model_en, _ = torch.hub.load(
-    repo_or_dir='snakers4/silero-models',
-    model='silero_tts',
-    language='en',
-    speaker='v3_en'
-)
-model_en.to(device)
-
 SPEAKER_RU = 'baya'   # варианты: aidar, baya, kseniya, xenia, eugene, random
 SPEAKER_EN = 'en_0'    # варианты: en_0..en_117, random
 SAMPLE_RATE = 48000
 
 # Пауза между разноязычными кусками, чтобы не склеивались впритык
 PAUSE_SAMPLES = int(0.15 * SAMPLE_RATE)
+
+
+def _load_model(language, speaker):
+    print(f"Загружаю модель Silero ({language})...")
+    model, _ = torch.hub.load(
+        repo_or_dir='snakers4/silero-models',
+        model='silero_tts',
+        language=language,
+        speaker=speaker,
+    )
+    return model.to(device)
+
+
+model_ru = _load_model('ru', 'v4_ru')
+model_en = _load_model('en', 'v3_en')
 
 
 def split_by_language(text):
@@ -102,7 +99,7 @@ def synthesize_mixed(text):
 
 @app.route("/synthesize", methods=["POST"])
 def synthesize():
-    text = request.json.get("text", "")
+    text = (request.json or {}).get("text", "")
 
     audio = synthesize_mixed(text)
 

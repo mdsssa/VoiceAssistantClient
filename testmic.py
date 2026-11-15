@@ -13,5 +13,7 @@ try:
         volume = np.abs(data).mean()
         print(f"Уровень: {volume:.0f}")
 except KeyboardInterrupt:
+    pass
+finally:
     stream.stop()
     stream.close()

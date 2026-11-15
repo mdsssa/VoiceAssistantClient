@@ -1,198 +1,97 @@
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Получить текущую погоду в указанном городе",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "city": {"type": "string", "description": "Название города, например Москва, Париж, Токио"}
-                },
-                "required": ["city"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "play_music",
-            "description": "Включить музыку в Spotify по названию трека и/или исполнителя",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string",
-                              "description": "Название трека и/или исполнителя, например 'Skryptonite Мразь'"}
-                },
-                "required": ["query"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "pause_music",
-            "description": "Поставить текущий трек на паузу",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "resume_music",
-            "description": "Продолжить воспроизведение с того места, где остановились",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "skip_track",
-            "description": "Переключить на следующий трек",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "previous_music_track",
-            "description": "Вернуться к предыдущему треку",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "change_volume",
-            "description": "Изменить громкость воспроизведения. Если пользователь просит 'потише'/'погромче' без конкретной цифры, подбери разумное значение сама (например, ±15% от 50)",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "level": {"type": "integer", "description": "Громкость в процентах, от 0 до 100"}
-                },
-                "required": ["level"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "seek_track",
-            "description": "Перемотать текущий трек на указанную позицию в секундах от начала",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "seconds": {"type": "integer", "description": "Позиция в треке в секундах, куда перемотать"}
-                },
-                "required": ["seconds"]
-            }
-        }
-    }
-    ,
-{
-    "type": "function",
-    "function": {
-        "name": "whats_playing",
-        "description": "Узнать, какой трек сейчас играет",
-        "parameters": {"type": "object", "properties": {}}
-    }
-},
-{
-    "type": "function",
-    "function": {
-        "name": "like_current_track",
-        "description": "Добавить текущий играющий трек в избранное (Liked Songs)",
-        "parameters": {"type": "object", "properties": {}}
-    }
-},
-{
-    "type": "function",
-    "function": {
-        "name": "start_my_wave",
-        "description": "Включить волну — начать с самого первого лайкнутого трека и продолжить дальше похожей музыкой",
-        "parameters": {"type": "object", "properties": {}}
-    }
-},
-{
-        "type": "function",
-        "function": {
-            "name": "search_and_send_recipe",
-            "description": "Ищет рецепт блюда в интернете и отправляет его пользователю в Telegram. Используй ВСЕГДА, когда пользователь просит рецепт, спрашивает как что-то приготовить или упоминает еду.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Что именно ищем. Например: 'паста карбонара', 'блины на молоке', 'салат цезарь'"
-                    }
-                },
-                "required": ["query"]
-            }
-        }
-    },
-{
-    "type": "function",
-    "function": {
-        "name": "set_timer",
-        "description": "Поставить таймер на N минут",
-        "parameters": {
-            "type": "object",
-            "properties": {"minutes": {"type": "number", "description": "Через сколько минут сработает таймер"}},
-            "required": ["minutes"]
-        }
-    }
-},
-{
-    "type": "function",
-    "function": {
-        "name": "set_alarm",
-        "description": "Поставить будильник на конкретное время",
-        "parameters": {
-            "type": "object",
-            "properties": {"time_str": {"type": "string", "description": "Время в формате ЧЧ:ММ, например '07:30'"}},
-            "required": ["time_str"]
-        }
-    }
-},
-{
-    "type": "function",
-    "function": {
-        "name": "cancel_all_timers",
-        "description": "Отменить все активные таймеры и будильники",
-        "parameters": {"type": "object", "properties": {}}
-    }
-},
-{
-    "type": "function",
-    "function": {
-        "name": "list_timers",
-        "description": "Узнать, какие таймеры и будильники сейчас активны",
-        "parameters": {"type": "object", "properties": {}}
-    }
-},
-{
-    "type": "function",
-    "function": {
-        "name": "web_search",
-        "description": (
-            "Поиск актуальной информации в интернете: новости, факты, цены, "
-            "события, всё, чего ты не знаешь или что могло измениться. "
-            "Вызывай, когда нужны свежие или точные данные."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Короткий поисковый запрос, как для поисковика",
-                }
-            },
-            "required": ["query"],
-        },
-    },
-}
+# tools.py — JSON-схемы функций для LLM + расшифровка кодов погоды Open-Meteo.
 
+
+def _tool(name, description, **props):
+    """Собирает одну декларацию функции: props — имя=(тип, описание)."""
+    parameters = {
+        "type": "object",
+        "properties": {
+            key: {"type": type_, "description": text}
+            for key, (type_, text) in props.items()
+        },
+    }
+    if props:
+        parameters["required"] = list(props)
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        },
+    }
+
+
+tools = [
+    # погода
+    _tool(
+        "get_weather",
+        "Получить текущую погоду в указанном городе",
+        city=("string", "Название города, например Москва, Париж, Токио"),
+    ),
+
+    # музыка
+    _tool(
+        "play_music",
+        "Включить музыку в Spotify по названию трека и/или исполнителя",
+        query=("string", "Название трека и/или исполнителя, например 'Skryptonite Мразь'"),
+    ),
+    _tool("pause_music", "Поставить текущий трек на паузу"),
+    _tool("resume_music", "Продолжить воспроизведение с того места, где остановились"),
+    _tool("skip_track", "Переключить на следующий трек"),
+    _tool("previous_music_track", "Вернуться к предыдущему треку"),
+    _tool(
+        "change_volume",
+        "Изменить громкость воспроизведения. Если пользователь просит 'потише'/'погромче' "
+        "без конкретной цифры, подбери разумное значение сама (например, ±15% от 50)",
+        level=("integer", "Громкость в процентах, от 0 до 100"),
+    ),
+    _tool(
+        "seek_track",
+        "Перемотать текущий трек на указанную позицию в секундах от начала",
+        seconds=("integer", "Позиция в треке в секундах, куда перемотать"),
+    ),
+    _tool("whats_playing", "Узнать, какой трек сейчас играет"),
+    _tool("like_current_track", "Добавить текущий играющий трек в избранное (Liked Songs)"),
+    _tool(
+        "start_my_wave",
+        "Включить волну — начать с самого первого лайкнутого трека "
+        "и продолжить дальше похожей музыкой",
+    ),
+
+    # рецепты
+    _tool(
+        "search_and_send_recipe",
+        "Ищет рецепт блюда в интернете и отправляет его пользователю в Telegram. "
+        "Используй ВСЕГДА, когда пользователь просит рецепт, спрашивает как что-то приготовить "
+        "или упоминает еду.",
+        query=("string", "Что именно ищем. Например: 'паста карбонара', 'блины на молоке', 'салат цезарь'"),
+    ),
+
+    # таймеры
+    _tool(
+        "set_timer",
+        "Поставить таймер на N минут",
+        minutes=("number", "Через сколько минут сработает таймер"),
+    ),
+    _tool(
+        "set_alarm",
+        "Поставить будильник на конкретное время",
+        time_str=("string", "Время в формате ЧЧ:ММ, например '07:30'"),
+    ),
+    _tool("cancel_all_timers", "Отменить все активные таймеры и будильники"),
+    _tool("list_timers", "Узнать, какие таймеры и будильники сейчас активны"),
+
+    # поиск
+    _tool(
+        "web_search",
+        "Поиск актуальной информации в интернете: новости, факты, цены, "
+        "события, всё, чего ты не знаешь или что могло измениться. "
+        "Вызывай, когда нужны свежие или точные данные.",
+        query=("string", "Короткий поисковый запрос, как для поисковика"),
+    ),
 ]
+
 
 WEATHER_CODE_DESCRIPTIONS = {
     0: "ясно",

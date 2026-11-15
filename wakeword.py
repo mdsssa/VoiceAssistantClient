@@ -2,30 +2,33 @@ import asyncio
 import os
 import platform
 import subprocess
+import sys
+import time
 from collections import deque
 
 import numpy as np
 import onnxruntime as ort
 from livekit.wakeword import WakeWordModel
 
-MODEL_PATH = os.path.expanduser("~/VoiceAssistantClient/kera.onnx")
-MODEL_NAME = "kera"    
-THRESHOLD = 0.35             
-DEBOUNCE = 2.0               
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "kera.onnx")
+MODEL_NAME = "kera"
+THRESHOLD = 0.35
+DEBOUNCE = 2.0
 
 LINUX_MIC = os.environ.get("KERA_MIC", "default")
 FRAME_SAMPLES = 1280         # 80 мс при 16 кГц, как в WakeWordListener
 FRAME_BYTES = FRAME_SAMPLES * 2
-CHUNK_FRAMES = 25            
-PREDICT_EVERY = 4            
-GATE_RMS = 700               
+CHUNK_FRAMES = 25            # ~2 секунды аудио в одном окне
+PREDICT_EVERY = 4            # предсказание не чаще, чем раз в 4 окна
+GATE_RMS = 700               # ниже этого уровня считаем, что в комнате тишина
 
 IS_MAC = platform.system() == "Darwin"
-if IS_MAC:
-    PYTHON_BIN = "python3"
-else:
-    PYTHON_BIN = os.path.expanduser("~/VoiceAssistantClient/venv/bin/python3")
-MAIN_SCRIPT = os.path.expanduser("~/VoiceAssistantClient/main.py")
+MAIN_SCRIPT = os.path.join(BASE_DIR, "main.py")
+# main.py запускаем тем же питоном, что и wakeword, но на Linux у проекта
+# обычно есть свой venv — предпочитаем его, как было и раньше.
+VENV_PYTHON = os.path.join(BASE_DIR, "venv", "bin", "python3")
+PYTHON_BIN = sys.executable if IS_MAC or not os.path.exists(VENV_PYTHON) else VENV_PYTHON
 
 
 def make_model() -> WakeWordModel:
@@ -35,12 +38,18 @@ def make_model() -> WakeWordModel:
     return WakeWordModel(models=[MODEL_PATH], sess_options=so)
 
 
+def _arecord_cmd():
+    return ["arecord", "-q", "-D", LINUX_MIC, "-f", "S16_LE",
+            "-r", "16000", "-c", "1", "-t", "raw"]
+
+
+def _rms(frame):
+    return float(np.sqrt(np.mean(frame.astype(np.float32) ** 2)))
+
 
 def wait_for_wakeword_linux() -> float:
     model = make_model()
-    cmd = ["arecord", "-q", "-D", LINUX_MIC, "-f", "S16_LE",
-           "-r", "16000", "-c", "1", "-t", "raw"]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(_arecord_cmd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     frames = deque(maxlen=CHUNK_FRAMES)
     rms_hist = deque(maxlen=CHUNK_FRAMES)
     step = 0
@@ -54,7 +63,7 @@ def wait_for_wakeword_linux() -> float:
                 )
             frame = np.frombuffer(buf, dtype=np.int16)
             frames.append(frame)
-            rms_hist.append(float(np.sqrt(np.mean(frame.astype(np.float32) ** 2))))
+            rms_hist.append(_rms(frame))
             if len(frames) < CHUNK_FRAMES:
                 continue  # копим первые 2 секунды
             step += 1
@@ -103,9 +112,44 @@ def main_linux():
         print("Жду 'Кэра'...")
 
 
+def debug_scores():
+    """Печатает score модели и rms — чтобы подобрать THRESHOLD и GATE_RMS.
+    Работает только на Linux: читает микрофон через arecord."""
+    model = make_model()
+    proc = subprocess.Popen(_arecord_cmd(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    frames = deque(maxlen=CHUNK_FRAMES)
+    best = 0.0
+    rms_max = 0.0
+    t0 = time.time()
+    try:
+        while True:
+            buf = proc.stdout.read(FRAME_BYTES)
+            if len(buf) < FRAME_BYTES:
+                print("arecord остановился")
+                return
+            frame = np.frombuffer(buf, dtype=np.int16)
+            rms_max = max(rms_max, _rms(frame))
+            frames.append(frame)
+            if len(frames) < CHUNK_FRAMES:
+                continue
+            scores = model.predict(np.concatenate(list(frames)))
+            best = max(best, max((float(v) for v in scores.values()), default=0.0))
+            if time.time() - t0 >= 0.5:
+                print(f"rms_max={rms_max:7.0f}  score_max={best:.3f}  scores={scores}")
+                best, rms_max, t0 = 0.0, 0.0, time.time()
+    finally:
+        proc.terminate()
+        proc.wait()
+
+
 if __name__ == "__main__":
     try:
-        if IS_MAC:
+        if "--debug" in sys.argv:
+            if IS_MAC:
+                print("Режим --debug работает только на Linux: нужен arecord.")
+            else:
+                debug_scores()
+        elif IS_MAC:
             asyncio.run(main_mac())
         else:
             main_linux()

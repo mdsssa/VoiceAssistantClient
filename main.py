@@ -1,14 +1,17 @@
-from web_search import web_search
+import argparse
+import json
+import os
+import tempfile
+
+import numpy as np
+import requests
 import sounddevice as sd
 import soundfile as sf
-import requests
-import numpy as np
-import subprocess
-import tempfile
-import os
-import json
-import argparse
-import spotifyConnect
+from dotenv import load_dotenv
+
+from audio import play_sound, speak
+from prompts import VOICE_PROMPT
+from recipes import search_and_send_recipe
 from spotifyConnect import (
     play_music,
     pause_music,
@@ -17,15 +20,17 @@ from spotifyConnect import (
     previous_music_track,
     change_volume,
     seek_track,
-    start_my_wave
+    start_my_wave,
+    whats_playing,
+    like_current_track,
 )
-from recipes import search_and_send_recipe
-from tools import tools , WEATHER_CODE_DESCRIPTIONS
-from weather import get_weather
-from spotifyConnect import whats_playing, like_current_track
 from timers import set_timer, set_alarm, cancel_all_timers, list_timers
+from tools import tools
+from weather import get_weather
 from web_search import web_search
 
+
+load_dotenv()
 
 AVAILABLE_FUNCTIONS = {
     "get_weather": get_weather,
@@ -36,25 +41,20 @@ AVAILABLE_FUNCTIONS = {
     "previous_music_track": previous_music_track,
     "change_volume": change_volume,
     "seek_track": seek_track,
-    "whats_playing" : whats_playing,
-    "like_current_track" : like_current_track,
-    "start_my_wave": start_my_wave ,
+    "whats_playing": whats_playing,
+    "like_current_track": like_current_track,
+    "start_my_wave": start_my_wave,
     "search_and_send_recipe": search_and_send_recipe,
-    "set_timer" : set_timer ,
-    "set_alarm": set_alarm ,
-    "cancel_all_timers":cancel_all_timers,
-    "list_timers":list_timers,
-    "web_search":web_search
+    "set_timer": set_timer,
+    "set_alarm": set_alarm,
+    "cancel_all_timers": cancel_all_timers,
+    "list_timers": list_timers,
+    "web_search": web_search,
 }
 
-# SERVER = "100.70.125.15"
 SERVER = "localhost"
 STT_URL = f"http://{SERVER}:8001/transcribe"
-LLM_URL = f"http://{SERVER}:8002/v1/chat/completions"
-TTS_URL = f"http://{SERVER}:8003/synthesize"
-
 SAMPLE_RATE = 16000
-
 
 
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "local")
@@ -68,47 +68,13 @@ else:
     LLM_HEADERS = {}
 
 
-# SOUND_LISTENING_START = "/System/Library/Sounds/Pop.aiff"
-# SOUND_LISTENING_END = "/System/Library/Sounds/Tink.aiff"
-SOUND_LISTENING_START = "./sounds/readyToListenV2.mp3"
-SOUND_LISTENING_END = "./sounds/listeningEndV2.mp3"
-# SOUND_READY = "/System/Library/Sounds/Glass.aiff"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SOUND_LISTENING_START = os.path.join(BASE_DIR, "sounds", "readyToListenV2.mp3")
+SOUND_LISTENING_END = os.path.join(BASE_DIR, "sounds", "listeningEndV2.mp3")
 
 # Сколько последних сообщений (без учёта system) держим в контексте.
 # Не даёт истории расти бесконечно и тащить за собой мусор/галлюцинации.
 HISTORY_LIMIT = 30
-
-
-
-def play_sound(path, blocking=True):
-    cmd = ["mpg123", "-q", path]
-    if blocking:
-        subprocess.run(cmd)
-    else:
-        subprocess.Popen(cmd)
-
-
-
-
-SYSTEM_PROMPT = (
-"Тебя зовут Кэра (полное имя - кэролайн) обращаяся к себе ВСЕГДА В ЖЕНСКОМ РОДЕ. Ты голосовой помощник. ты не должна отвечать слишком крупными ответами и использовать любые эмоджи "    "Отвечай кратко и естественно, заменяй ВСЕ цифры словами (например: 2 - два , 25 - двадцать пять)(Так же конечно ставь слова в правильнцый падеж (не 'двадцать одного градуса' , а 'двадцать один градус'"
-"Для погоды, музыки и управления плеером используй доступные функции —"
-"Если пользователь просит следующий/другой/новый трек — используй skip_track. "
-"Если просит предыдущий/прошлый/назад — используй previous_music_track. "
-"При неясной формулировке про переключение трека по умолчанию считай, что это skip_track."
-"Если спрашивают, что сейчас играет — используй whats_playing. "
-"Если просят добавить текущий трек в избранное/лайкнуть — используй like_current_track. "
-"Если просят включить волну / что-то похожее на любимое / что-то в своём духе — используй start_my_wave. "
-"Так же я живу в томске , так что при запросе погоды без указания города бери его за основу"
-"кстати , когда я тебя прошу включать музыку , не всегда к сожалению тебе поступают правильные данные о названии исполнителя/песни , так что пытайся подгонять то , что я говорю под именна реальных исполнителей/названия песен (например devtones на входе - это deftones"
-"Если просят поставить таймер на N минут — используй set_timer. "
-"Если просят будильник на время — используй set_alarm. "
-"Если просят отменить таймеры/будильники — cancel_all_timers. "
-"Если спрашивают про активные таймеры — list_timers."
-"Если тебе недостаточно информации в твоих базах (у тебя они устаревшие) - для получения новой информации используй web_search"
-"Не упоминай свои функции без надобности , только при прямом вопросе"
-)
-
 
 
 def record_until_silence(threshold=800, silence_duration=1.5, max_duration=15):
@@ -151,14 +117,18 @@ def record_until_silence(threshold=800, silence_duration=1.5, max_duration=15):
         return None
 
     return np.concatenate(frames, axis=0)
+
+
 def transcribe(audio) -> str:
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         sf.write(f.name, audio, SAMPLE_RATE)
         path = f.name
-    with open(path, 'rb') as f:
-        r = requests.post(STT_URL, files={'file': f})
-    os.remove(path)
-    text = r.json().get("text", "")
+    try:
+        with open(path, 'rb') as f:
+            r = requests.post(STT_URL, files={'file': f})
+        text = r.json().get("text", "")
+    finally:
+        os.remove(path)
     print(text)
     return text
 
@@ -170,6 +140,7 @@ def trim_history(history):
     if len(rest) > HISTORY_LIMIT:
         rest = rest[-HISTORY_LIMIT:]
     return [system] + rest
+
 
 def _build_payload(messages, max_tokens) -> dict:
     payload = {
@@ -183,80 +154,58 @@ def _build_payload(messages, max_tokens) -> dict:
     return payload
 
 
+def _chat(messages, max_tokens) -> dict:
+    """Один запрос к LLM. Всегда возвращает message, даже если ответ странный."""
+    r = requests.post(LLM_URL, headers=LLM_HEADERS, json=_build_payload(messages, max_tokens))
+    print(f"DEBUG LLM raw response: {r.status_code} {r.text}")
+    try:
+        data = r.json()
+    except ValueError:
+        return {"content": "Произошла неизвестная ошибка"}
+    if data.get("choices"):
+        return data["choices"][0]["message"]
+    return data.get("message") or {"content": "Произошла неизвестная ошибка"}
+
+
 def ask_llm(text, history) -> str:
     history.append({"role": "user", "content": text})
     history[:] = trim_history(history)
-    r = requests.post(LLM_URL, headers=LLM_HEADERS,
-        json=_build_payload(history, 300))
-    print(f"DEBUG raw response: {r.status_code} {r.text}")
-    try:
-        message = r.json()["choices"][0]["message"]
-    except KeyError:
-        message = r.json()["message"]
-    except Exception as e:
-        print(e)
-        message = "Произошла неизвестная ошибка"
+
+    message = _chat(history, 300)
     if message.get("tool_calls"):
         history.append(message)
         for call in message["tool_calls"]:
             fn_name = call["function"]["name"]
-            fn_args = json.loads(call["function"]["arguments"])
             try:
+                fn_args = json.loads(call["function"]["arguments"] or "{}")
                 result = AVAILABLE_FUNCTIONS[fn_name](**fn_args)
             except Exception as e:
                 result = f"Ошибка при вызове {fn_name}: {e}"
             history.append({
                 "role": "tool",
                 "tool_call_id": call["id"],
-                "content": result
+                "content": str(result),
             })
 
-        r2 = requests.post(LLM_URL, headers=LLM_HEADERS,
-            json=_build_payload(history, 150))
-        print(f"DEBUG r2 raw response: {r2.status_code} {r2.text}")
-        try:
-            final_message = r2.json()["choices"][0]["message"]
-        except KeyError:
-            final_message = r2.json()["message"]
-        except Exception as e:
-            print(e)
-            final_message = "Произошла неизвестная ошибка"
-        reply = final_message.get("content") or ""
-        history.append({"role": "assistant", "content": reply})
-        print(final_message)
-        return reply.replace("Celsius", "")
-    else:
-        reply = message.get("content") or ""
-        history.append({"role": "assistant", "content": reply})
-        print(message)
-        return reply.replace("Celsius", "")
+        message = _chat(history, 150)
+
+    reply = (message.get("content") or "").replace("Celsius", "")
+    history.append({"role": "assistant", "content": reply})
+    print(message)
+    return reply
 
 
-def speak(text):
-    wasPlaying = spotifyConnect.pause_music()
-    r = requests.post(TTS_URL, json={"text": text})
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        f.write(r.content)
-        path = f.name
-    subprocess.run(["aplay", "-q", path])
-    os.remove(path)
-    spotifyConnect.resume_music() if wasPlaying else None
-
-def one_exchange(history)->bool:
+def one_exchange(history):
     audio = record_until_silence()
     if audio is None:
-        return False
+        return
 
     play_sound(SOUND_LISTENING_END)
     text = transcribe(audio)
     if not text.strip():
-        return False
+        return
 
-    reply = ask_llm(text, history)
-
-    # play_sound(SOUND_READY)
-    speak(reply)
-    return True
+    speak(ask_llm(text, history))
 
 
 def main():
@@ -264,7 +213,7 @@ def main():
     parser.add_argument("--single-turn", action="store_true")
     args = parser.parse_args()
 
-    history = [{"role": "system", "content": SYSTEM_PROMPT}]
+    history = [{"role": "system", "content": VOICE_PROMPT}]
 
     if args.single_turn:
         one_exchange(history)
@@ -281,5 +230,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-else:
-    pass

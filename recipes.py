@@ -1,10 +1,14 @@
 import os
+
 import requests
 from ddgs import DDGS
-from t_info import bot_token , chat_id
+from dotenv import load_dotenv
 
-TG_BOT_TOKEN = bot_token
-TG_CHAT_ID = chat_id
+
+load_dotenv()
+
+TG_BOT_TOKEN = os.environ.get("BOT_TOKEN")
+TG_CHAT_ID = os.environ.get("CHAT_ID")
 
 
 def search_and_send_recipe(query: str) -> str:
@@ -72,9 +76,9 @@ def search_and_send_recipe(query: str) -> str:
             )
 
         # Отправка в Telegram
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
         payload = {
-            "chat_id": chat_id,
+            "chat_id": TG_CHAT_ID,
             "text": tg_message,
             "parse_mode": "Markdown",
             "disable_web_page_preview": False

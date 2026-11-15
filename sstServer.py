@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from faster_whisper import WhisperModel
 import tempfile
@@ -6,12 +5,9 @@ import os
 
 app = Flask(__name__)
 
-#"small" — разумный баланс скорости/качества для N-series CPU.
+# "small" — разумный баланс скорости/качества для N-series CPU.
 # Если будет слишком медленно — попробуй "base".
 model = WhisperModel("small", device="cpu", compute_type="int8")
-
-app.config['JSON_AS_ASCII'] = False
-
 
 
 @app.route("/transcribe", methods=["POST"])

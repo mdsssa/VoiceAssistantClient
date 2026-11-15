@@ -2,10 +2,6 @@ import requests
 from tools import WEATHER_CODE_DESCRIPTIONS
 
 
-def describe_weather_code(code):
-    return WEATHER_CODE_DESCRIPTIONS.get(code, "неизвестные погодные условия")
-
-
 def get_weather(city):
     try:
         geo = requests.get(
@@ -18,9 +14,8 @@ def get_weather(city):
         lat, lon = loc["latitude"], loc["longitude"]
         found_name = loc.get("name", city)
 
-        # current_weather не даёт ни ощущаемой температуры, ни кода погоды
-        # в удобном виде без него самого — берём через "current" с явным
-        # списком полей.
+        # current_weather не отдаёт ощущаемую температуру, поэтому берём
+        # блок "current" с явным списком полей.
         forecast = requests.get(
             "https://api.open-meteo.com/v1/forecast",
             params={
@@ -32,7 +27,9 @@ def get_weather(city):
 
         temp = round(forecast["temperature_2m"])
         feels_like = round(forecast["apparent_temperature"])
-        condition = describe_weather_code(forecast["weather_code"])
+        condition = WEATHER_CODE_DESCRIPTIONS.get(
+            forecast["weather_code"], "неизвестные погодные условия"
+        )
 
         result = (
             f"В городе {found_name} сейчас {condition}, {temp} градусов, "

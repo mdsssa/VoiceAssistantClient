@@ -34,7 +34,11 @@ if __name__ == "__main__":
     print("Слежу за таймерами...")
     try:
         while True:
-            check_timers()
+            try:
+                check_timers()
+            except Exception as e:
+                # битый файл/недоступный TTS не должны убивать watcher
+                print(f"[timer_watcher error] {e}")
             time.sleep(1)
     except KeyboardInterrupt:
         pass

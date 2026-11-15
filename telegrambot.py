@@ -18,9 +18,13 @@ history = [{"role": "system", "content": TELEGRAM_PROMPT}]
 def handler(message):
     if not message.text:
         return
-    reply = ask_llm(message.text, history)
-    if reply:
-        bot.reply_to(message, reply.replace("**", "*"), parse_mode="Markdown")
+    try:
+        reply = ask_llm(message.text, history)
+        if reply:
+            bot.reply_to(message, reply.replace("**", "*"), parse_mode="Markdown")
+    except Exception as e:
+        # сеть/LLM/разметка не должны останавливать polling
+        print(f"[telegrambot error] {e}")
 
 
 if __name__ == "__main__":

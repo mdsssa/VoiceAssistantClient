@@ -91,25 +91,38 @@ async def wait_for_wakeword_mac() -> float:
 
 
 def run_main_script():
-    subprocess.run([PYTHON_BIN, MAIN_SCRIPT, "--single-turn"])
+    try:
+        subprocess.run([PYTHON_BIN, MAIN_SCRIPT, "--single-turn"])
+    except Exception as e:
+        print(f"[wakeword] не получилось запустить main.py: {e}")
 
 
 async def main_mac():
     print("Жду 'Кэра'...")
     while True:
-        conf = await wait_for_wakeword_mac()
-        print(f"Finaly Heard! (conf={conf:.2f})")
-        await asyncio.to_thread(run_main_script)
-        print("Жду 'Кэра'...")
+        try:
+            conf = await wait_for_wakeword_mac()
+            print(f"Finaly Heard! (conf={conf:.2f})")
+            await asyncio.to_thread(run_main_script)
+            print("Жду 'Кэра'...")
+        except Exception as e:
+            # микрофон/модель могут отвалиться — ждём и пробуем снова,
+            # вместо того чтобы уходить в рестарт-луп systemd
+            print(f"[wakeword error] {e}")
+            await asyncio.sleep(3)
 
 
 def main_linux():
     print(f"Жду 'Кэра'... (микрофон {LINUX_MIC})")
     while True:
-        conf = wait_for_wakeword_linux()
-        print(f"Finaly Heard! (conf={conf:.2f})")
-        run_main_script()
-        print("Жду 'Кэра'...")
+        try:
+            conf = wait_for_wakeword_linux()
+            print(f"Finaly Heard! (conf={conf:.2f})")
+            run_main_script()
+            print("Жду 'Кэра'...")
+        except Exception as e:
+            print(f"[wakeword error] {e}")
+            time.sleep(3)
 
 
 def debug_scores():

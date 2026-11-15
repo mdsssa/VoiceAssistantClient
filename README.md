@@ -94,6 +94,7 @@
 | [sstServer.py](sstServer.py) | Flask + faster-whisper, `:8001` |
 | [ttsServer.py](ttsServer.py) | Flask + Silero, `:8003` |
 | [testmic.py](testmic.py) | Показывает уровень микрофона — удобно подбирать порог VAD |
+| [deploy/kaira.sh](deploy/kaira.sh) | Проверка и перезапуск systemd-сервисов на сервере |
 | [sort_downloads.py](sort_downloads.py) | Отдельная утилита сортировки `~/Downloads`, к ассистенту не относится |
 
 ---
@@ -198,6 +199,26 @@ python timer_watcher.py
 
 Если STT/TTS/LLM живут на другой машине, поменяй `STT_URL` в [main.py](main.py),
 `TTS_URL` в окружении или `LOCAL_LLM_URL` в `.env`.
+
+---
+
+## 🖥 systemd на сервере
+
+Сервисы: `kaira-stt`, `kaira-tts`, `kaira-timers`, `kaira-wakeword`, `tgbot` + отдельный
+`librespot` (его не трогаем). Точки входа не менялись, поэтому юниты править не нужно —
+после `git pull` достаточно перезапустить сервисы. Новых pip-зависимостей нет,
+`pip install` после обновления не нужен.
+
+```bash
+bash deploy/kaira.sh check             # ничего не меняет: файлы, .env, зависимости, порты, юниты
+bash deploy/kaira.sh restart           # перезапустить 5 сервисов, librespot не трогает
+bash deploy/kaira.sh restart tgbot     # перезапустить один сервис
+bash deploy/kaira.sh logs kaira-wakeword
+```
+
+Скрипт сам понимает, user-юниты у тебя (`systemctl --user`) или системные (`systemctl`),
+и показывает `ExecStart` каждого сервиса. Если `check` ругается — пришли его вывод и
+`systemctl --user cat kaira-wakeword`, поправим точечно.
 
 ---
 

@@ -30,23 +30,26 @@ def play_sound(path, blocking=True):
 
 
 def speak(text):
-    """Озвучивает текст, на время ставя музыку на паузу."""
-    was_playing = spotifyConnect.pause_music()
+    """Озвучивает текст, на время ставя музыку на паузу.
+    Любая ошибка TTS/плеера логируется и не роняет вызывающий процесс."""
+    was_playing = False
+    try:
+        was_playing = spotifyConnect.pause_music()
 
-    r = requests.post(TTS_URL, json={"text": text})
-    if not r.ok or not r.content:
-        print(f"[speak] TTS не ответил: {r.status_code}")
+        r = requests.post(TTS_URL, json={"text": text})
+        if not r.ok or not r.content:
+            print(f"[speak] TTS не ответил: {r.status_code}")
+            return
+
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            f.write(r.content)
+            path = f.name
+        try:
+            play_sound(path)
+        finally:
+            os.remove(path)
+    except Exception as e:
+        print(f"[speak error] {e}")
+    finally:
         if was_playing:
             spotifyConnect.resume_music()
-        return
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        f.write(r.content)
-        path = f.name
-    try:
-        play_sound(path)
-    finally:
-        os.remove(path)
-
-    if was_playing:
-        spotifyConnect.resume_music()

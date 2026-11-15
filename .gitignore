@@ -21,7 +21,7 @@ dist/
 .mypy_cache/
 .ruff_cache/
 
-# --- виртуальные окружения и секреты ---
+# --- virtual environments and secrets ---
 .env
 .env.*
 !.env.example
@@ -29,15 +29,15 @@ dist/
 venv/
 env/
 
-# --- состояние и токены ---
+# --- state and tokens ---
 .timers.json
 wakeConfig.json
 
-# --- тестовые артефакты и логи ---
+# --- test artifacts and logs ---
 test_tts.wav
 *.log
 
-# --- локальные утилиты/черновики ---
+# --- local utilities and drafts ---
 sort_downloads.py
 test.py
 .aider*

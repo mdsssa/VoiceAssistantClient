@@ -1,109 +1,108 @@
-# 🎙 Кэра — голосовой ассистент
+# Kera - Voice Assistant
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-2e3440?logo=linux&logoColor=white)](#-быстрый-старт)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-2e3440?logo=linux&logoColor=white)](#quick-start)
 [![STT](https://img.shields.io/badge/STT-faster--whisper-0ea5e9)](https://github.com/SYSTRAN/faster-whisper)
 [![TTS](https://img.shields.io/badge/TTS-Silero%20ru%2Fen-ea580c)](https://github.com/snakers4/silero-models)
-[![LLM](https://img.shields.io/badge/LLM-Groq%20%7C%20local-8b5cf6)](#-архитектура)
+[![LLM](https://img.shields.io/badge/LLM-Groq%20%7C%20local-8b5cf6)](#architecture)
 
-**Кэра (Кэролайн)** — локальный русскоязычный голосовой помощник: слушает wake-word,
-записывает реплику по VAD, распознаёт речь, думает через LLM с function calling и отвечает
-голосом. Умеет управлять Spotify, ставить таймеры и будильники, узнавать погоду, искать
-в интернете и присылать рецепты в Telegram.
-
-> A local Russian-speaking voice assistant:
-> wake word → VAD → faster-whisper → LLM with tool calling → Silero TTS.
+**Kera (Caroline)** is a local Russian-speaking voice assistant: it listens for a wake word,
+records a phrase using VAD, transcribes speech, thinks with an LLM that can call tools, and
+replies with synthesized speech. It can control Spotify, set timers and alarms, report the
+weather, search the web, and send recipes to Telegram.
 
 ```text
-— Кэра, включи мою волну
-— Включаю волну от избранного
+User:  Kera, start my wave
+Kera:  Starting your wave from Liked Songs
 ```
 
-Репозиторий — **клиент**. STT, TTS и (опционально) LLM поднимаются отдельными процессами,
-поэтому требования к микрофону и к серверам не смешиваются.
+> Kera speaks Russian. The dialogue above is translated for readability.
+
+This repository contains the **client**. STT, TTS, and (optionally) the LLM run as separate
+processes, so microphone dependencies and server dependencies do not get mixed together.
 
 ---
 
-## ✨ Возможности
+## Features
 
-- 🎯 **Wake-word «Кэра»** — ONNX-модель `kera.onnx`, на Linux через `arecord`, на macOS через `livekit.wakeword`.
-- 🎤 **Запись по VAD** — пишет до паузы в речи и ставит Spotify на паузу, чтобы музыка не триггерила микрофон.
-- 🧠 **LLM с инструментами** — Groq API или любой локальный OpenAI-совместимый сервер.
-- 🎵 **Spotify** — play/pause, следующий/предыдущий трек, громкость, перемотка, лайк, «моя волна».
-- ⏰ **Таймеры и будильники** — хранятся в `.timers.json`, озвучиваются отдельным watcher-процессом.
-- 🌤 **Погода** — Open-Meteo, по умолчанию Томск.
-- 🔎 **Веб-поиск** — DuckDuckGo, когда знаний модели не хватает.
-- 🍳 **Рецепты** — находит страницу с рецептом и отправляет её в Telegram.
-- 💬 **Telegram-бот** — тот же LLM и те же инструменты, но в чате.
-- 🗣 **Смешанный ru/en TTS** — текст режется по языку, и Silero переключает модели на английских вставках.
+- **Wake word "Kera"** - ONNX model `kera.onnx`; `arecord` on Linux, `livekit.wakeword` on macOS.
+- **VAD recording** - records until silence and pauses Spotify so music does not trigger the microphone.
+- **LLM with tools** - Groq API or any local OpenAI-compatible server.
+- **Spotify** - play/pause, next/previous track, volume, seek, like, "my wave".
+- **Timers and alarms** - stored in `.timers.json` and announced by a separate watcher process.
+- **Weather** - Open-Meteo, Tomsk by default.
+- **Web search** - DuckDuckGo when the model needs fresh information.
+- **Recipes** - finds a recipe page and sends it to Telegram.
+- **Telegram bot** - the same LLM and tools, but in a chat.
+- **Mixed ru/en TTS** - text is split by language and Silero switches models for English inserts.
 
 ---
 
-## 🧠 Архитектура
+## Architecture
 
 ```text
-        ┌──────────────┐
-        │  wakeword.py │  ONNX «Кэра» (Linux: arecord / macOS: livekit)
-        └──────┬───────┘
-               │ запускает main.py --single-turn
-               ▼
-🎙 микрофон ─► VAD ─► main.py ──HTTP──► sstServer.py :8001 (faster-whisper, ru)
-                        │
-                        ├──► LLM (Groq API или local :8002)
-                        │        ▲
-                        │        │ tools.py — JSON-схемы функций
-                        │        │
-                        │   function calling
-                        │        ├── spotifyConnect.py ──► Spotify Web API
-                        │        ├── weather.py        ──► Open-Meteo
-                        │        ├── web_search.py     ──► DuckDuckGo
-                        │        ├── recipes.py        ──► Telegram
-                        │        └── timers.py         ──► .timers.json
-                        │
-                        └──HTTP──► ttsServer.py :8003 (Silero ru+en) ──► 🔊
+        +--------------+
+        |  wakeword.py |  ONNX "Kera" (Linux: arecord / macOS: livekit)
+        +------+-------+
+               | launches main.py --single-turn
+               v
+microphone --> VAD --> main.py --HTTP--> sstServer.py :8001 (faster-whisper, ru)
+                        |
+                        +--> LLM (Groq API or local :8002)
+                        |        ^
+                        |        | tools.py - JSON function schemas
+                        |        |
+                        |   function calling
+                        |        +--> spotifyConnect.py --> Spotify Web API
+                        |        +--> weather.py        --> Open-Meteo
+                        |        +--> web_search.py     --> DuckDuckGo
+                        |        +--> recipes.py        --> Telegram
+                        |        +--> timers.py         --> .timers.json
+                        |
+                        +--HTTP--> ttsServer.py :8003 (Silero ru+en) --> speaker
 ```
 
-Отдельные процессы:
+Separate processes:
 
-| Процесс | Порт | Зачем |
+| Process | Port | Purpose |
 |---|---|---|
-| `sstServer.py` | `8001` | Распознавание речи (faster-whisper `small`, `int8`, язык `ru`) |
-| LLM | `8002` | Локальная модель (если `LLM_PROVIDER=local`) |
-| `ttsServer.py` | `8003` | Синтез речи (Silero `v4_ru` + `v3_en`) |
-| `timer_watcher.py` | — | Следит за таймерами и озвучивает срабатывания |
-| `telegrambot.py` | — | Чат-бот на том же LLM |
+| `sstServer.py` | `8001` | Speech recognition (faster-whisper `small`, `int8`, language `ru`) |
+| LLM | `8002` | Local model when `LLM_PROVIDER=local` |
+| `ttsServer.py` | `8003` | Speech synthesis (Silero `v4_ru` + `v3_en`) |
+| `timer_watcher.py` | - | Watches timers and announces them |
+| `telegrambot.py` | - | Chat bot using the same LLM |
 
 ---
 
-## 📁 Структура
+## Project structure
 
-| Файл | Роль |
+| File | Purpose |
 |---|---|
-| [main.py](main.py) | Голосовой цикл: запись, STT, LLM с tool calls, TTS |
-| [wakeword.py](wakeword.py) | Wake-word «Кэра»; `--debug` печатает score модели (Linux) |
-| [audio.py](audio.py) | `play_sound()` и `speak()` — общее аудио для всех процессов |
-| [prompts.py](prompts.py) | Системные промпты: голос и Telegram, общие правила инструментов |
-| [tools.py](tools.py) | JSON-схемы функций для LLM + расшифровка кодов погоды |
-| [spotifyConnect.py](spotifyConnect.py) | OAuth, обновление токена, Spotify Web API |
-| [weather.py](weather.py) | Погода через Open-Meteo |
-| [web_search.py](web_search.py) | Поиск через DuckDuckGo |
-| [recipes.py](recipes.py) | Поиск рецепта и отправка в Telegram |
-| [timers.py](timers.py) | Хранение таймеров и будильников |
-| [timer_watcher.py](timer_watcher.py) | Озвучка сработавших таймеров |
-| [telegrambot.py](telegrambot.py) | Telegram-бот |
+| [main.py](main.py) | Voice loop: recording, STT, LLM with tool calls, TTS |
+| [wakeword.py](wakeword.py) | Wake word "Kera"; `--debug` prints model scores (Linux) |
+| [audio.py](audio.py) | `play_sound()` and `speak()` shared by all processes |
+| [prompts.py](prompts.py) | System prompts for voice and Telegram plus shared tool rules |
+| [tools.py](tools.py) | JSON function schemas for the LLM and weather code descriptions |
+| [spotifyConnect.py](spotifyConnect.py) | OAuth, token refresh, Spotify Web API |
+| [weather.py](weather.py) | Weather via Open-Meteo |
+| [web_search.py](web_search.py) | Search via DuckDuckGo |
+| [recipes.py](recipes.py) | Recipe search and Telegram delivery |
+| [timers.py](timers.py) | Timer and alarm storage |
+| [timer_watcher.py](timer_watcher.py) | Announces expired timers and alarms |
+| [telegrambot.py](telegrambot.py) | Telegram bot |
 | [sstServer.py](sstServer.py) | Flask + faster-whisper, `:8001` |
 | [ttsServer.py](ttsServer.py) | Flask + Silero, `:8003` |
-| [testmic.py](testmic.py) | Показывает уровень микрофона — удобно подбирать порог VAD |
-| [deploy/kaira.sh](deploy/kaira.sh) | Проверка и перезапуск systemd-сервисов на сервере |
-| [sort_downloads.py](sort_downloads.py) | Отдельная утилита сортировки `~/Downloads`, к ассистенту не относится |
+| [testmic.py](testmic.py) | Prints microphone level - useful for tuning the VAD threshold |
+| [deploy/kaira.sh](deploy/kaira.sh) | Checks and restarts systemd services on the server |
+| [sort_downloads.py](sort_downloads.py) | Standalone `~/Downloads` cleanup utility, unrelated to the assistant |
 
 ---
 
-## 🚀 Быстрый старт
+## Quick start
 
-### 1. Зависимости
+### 1. Dependencies
 
-Нужен Python **3.10+**.
+Python **3.10+** is required.
 
 ```bash
 python3 -m venv venv
@@ -111,21 +110,21 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Системные пакеты (Linux):
+System packages (Linux):
 
 ```bash
-# mp3-звуки и запись/воспроизведение wav
+# mp3 sounds and wav playback/recording
 sudo apt install mpg123 alsa-utils
 ```
 
-На macOS дополнительно ничего не нужно — используется встроенный `afplay`.
+On macOS nothing extra is needed - the built-in `afplay` is used.
 
-Для Spotify понадобится **Spotify Connect-устройство** (например, `librespot`), имя которого
-указывается в `SPOTIFY_TARGET_DEVICE`.
+Spotify requires a **Spotify Connect device** (for example, `librespot`). Its name is set in
+`SPOTIFY_TARGET_DEVICE`.
 
 ### 2. `.env`
 
-Создай в корне проекта файл `.env` (он в `.gitignore`):
+Create a `.env` file in the project root (it is gitignored):
 
 ```dotenv
 # --- Spotify ---
@@ -140,155 +139,156 @@ LLM_PROVIDER=groq
 GROQ_API_KEY=your_groq_key
 LOCAL_LLM_URL=http://localhost:8002/v1/chat/completions
 
-# --- Telegram (бот и отправка рецептов) ---
+# --- Telegram (bot and recipe delivery) ---
 BOT_TOKEN=123456:ABC-DEF...
 CHAT_ID=-1001234567890
 ```
 
-| Переменная | Обязательна | Назначение |
+| Variable | Required | Purpose |
 |---|---|---|
-| `CLIENT_ID`, `CLIENT_SECRET` | да | приложение Spotify |
-| `REDIRECT_URI` | да | callback для OAuth, по умолчанию `http://127.0.0.1:8888/callback` |
-| `SPOTIFY_TARGET_DEVICE` | для Spotify | часть имени устройства в Spotify Connect |
-| `LLM_PROVIDER` | нет | `groq` или `local` (по умолчанию `local`) |
-| `GROQ_API_KEY` | для Groq | ключ API |
-| `LOCAL_LLM_URL` | нет | по умолчанию `http://localhost:8002/v1/chat/completions` |
-| `BOT_TOKEN`, `CHAT_ID` | для Telegram | бот и чат для сообщений |
-| `TTS_URL` | нет | по умолчанию `http://localhost:8003/synthesize` |
-| `KERA_MIC` | нет | ALSA-устройство для `arecord`, по умолчанию `default` |
+| `CLIENT_ID`, `CLIENT_SECRET` | yes | Spotify application credentials |
+| `REDIRECT_URI` | yes | OAuth callback, defaults to `http://127.0.0.1:8888/callback` |
+| `SPOTIFY_TARGET_DEVICE` | for Spotify | Part of the Spotify Connect device name |
+| `LLM_PROVIDER` | no | `groq` or `local` (default is `local`) |
+| `GROQ_API_KEY` | for Groq | API key |
+| `LOCAL_LLM_URL` | no | Defaults to `http://localhost:8002/v1/chat/completions` |
+| `BOT_TOKEN`, `CHAT_ID` | for Telegram | Bot token and target chat |
+| `TTS_URL` | no | Defaults to `http://localhost:8003/synthesize` |
+| `KERA_MIC` | no | ALSA device for `arecord`, defaults to `default` |
 
-> ⚠️ Ключи из `.env` не коммитятся. Если файл уже попадал в git — перевыпусти токены.
+> **Note:** never commit `.env`. If the file has ever been pushed to git, rotate the tokens.
 
-### 3. Spotify — авторизация один раз
+### 3. Spotify authorization (once)
 
 ```bash
-python spotifyConnect.py --auth      # откроет браузер, токен ляжет в ~/.spotify_token_cache.json
-python spotifyConnect.py --devices   # проверить, что целевое устройство видно
+python spotifyConnect.py --auth      # opens the browser; token is stored in ~/.spotify_token_cache.json
+python spotifyConnect.py --devices   # verifies that the target device is visible
 ```
 
-Токен обновляется автоматически; `scope`: playback state/modify + library read/modify.
+The token is refreshed automatically. Scope: playback state/modify and library read/modify.
 
 ---
 
-## ▶️ Запуск
+## Running
 
-Каждый пункт — в своём терминале.
+Run each item in its own terminal.
 
 ```bash
-# 1. Распознавание речи
+# 1. Speech recognition
 python sstServer.py                  # :8001
 
-# 2. Синтез речи
+# 2. Speech synthesis
 python ttsServer.py                  # :8003
 
 # 3. LLM
-#    - Groq: LLM_PROVIDER=groq в .env, отдельный процесс не нужен
-#    - local: подними свой OpenAI-совместимый сервер на :8002
+#    - Groq: set LLM_PROVIDER=groq in .env, no separate process needed
+#    - local: run your own OpenAI-compatible server on :8002
 
-# 4. Голосовой ассистент
-python wakeword.py                   # всегда слушает «Кэра»
-python main.py                       # Enter → говоришь
-python main.py --single-turn         # одна реплика (так запускает wakeword)
+# 4. Voice assistant
+python wakeword.py                   # always listening for "Kera"
+python main.py                       # press Enter to talk
+python main.py --single-turn         # one phrase (this is how wakeword starts it)
 
-# 5. Telegram-бот
+# 5. Telegram bot
 python telegrambot.py
 
-# 6. Таймеры и будильники
+# 6. Timers and alarms
 python timer_watcher.py
 ```
 
-Если STT/TTS/LLM живут на другой машине, поменяй `STT_URL` в [main.py](main.py),
-`TTS_URL` в окружении или `LOCAL_LLM_URL` в `.env`.
+If STT, TTS, or the LLM run on another machine, change `STT_URL` in [main.py](main.py),
+`TTS_URL` in the environment, or `LOCAL_LLM_URL` in `.env`.
 
 ---
 
-## 🖥 systemd на сервере
+## systemd on the server
 
-Сервисы: `kaira-stt`, `kaira-tts`, `kaira-timers`, `kaira-wakeword`, `tgbot` + отдельный
-`librespot` (его не трогаем). Точки входа не менялись, поэтому юниты править не нужно —
-после `git pull` достаточно перезапустить сервисы. Новых pip-зависимостей нет,
-`pip install` после обновления не нужен.
+Services: `kaira-stt`, `kaira-tts`, `kaira-timers`, `kaira-wakeword`, `tgbot`, plus a separate
+`librespot` (left untouched). Entry points have not changed, so the unit files do not need to be
+edited: after `git pull`, restart the services. There are no new pip dependencies, so
+`pip install` is not required after an update.
 
 ```bash
-bash deploy/kaira.sh check             # ничего не меняет: файлы, .env, зависимости, порты, юниты
-bash deploy/kaira.sh restart           # перезапустить 5 сервисов, librespot не трогает
-bash deploy/kaira.sh restart tgbot     # перезапустить один сервис
+bash deploy/kaira.sh check             # read-only: files, .env, dependencies, ports, units
+bash deploy/kaira.sh restart           # restarts 5 services, leaves librespot alone
+bash deploy/kaira.sh restart tgbot     # restarts a single service
 bash deploy/kaira.sh logs kaira-wakeword
 ```
 
-Скрипт сам понимает, user-юниты у тебя (`systemctl --user`) или системные (`systemctl`),
-и показывает `ExecStart` каждого сервиса. Если `check` ругается — пришли его вывод и
-`systemctl --user cat kaira-wakeword`, поправим точечно.
+The script detects whether the units are user units (`systemctl --user`) or system units
+(`systemctl`) and prints the `ExecStart` line for each service. If `check` reports a problem,
+send its output plus `systemctl --user cat kaira-wakeword` so it can be fixed.
 
 ---
 
-## 🎧 Spotify: что доступно
+## Spotify commands
 
-| Команда | Функция |
+| Command | Function |
 |---|---|
-| «включи …» | `play_music` — поиск трека и запуск альбома с нужной позиции |
-| «поставь на паузу» / «продолжи» | `pause_music` / `resume_music` |
-| «следующий» / «предыдущий» | `skip_track` / `previous_music_track` |
-| «громче» / «тише» / «громкость 40» | `change_volume` (системная громкость: `pactl` / `osascript`) |
-| «перемотай на минуту» | `seek_track` |
-| «что играет?» | `whats_playing` |
-| «лайкни» | `like_current_track` |
-| «включи мою волну» | `start_my_wave` — Liked Songs с первого лайкнутого трека и дальше |
+| "play ..." | `play_music` - searches for a track and starts the album at that track |
+| "pause" / "resume" | `pause_music` / `resume_music` |
+| "next" / "previous" | `skip_track` / `previous_music_track` |
+| "louder" / "quieter" / "volume 40" | `change_volume` (system volume: `pactl` / `osascript`) |
+| "seek to 1:00" | `seek_track` |
+| "what is playing?" | `whats_playing` |
+| "like this" | `like_current_track` |
+| "start my wave" | `start_my_wave` - Liked Songs from the first liked track onward |
 
-Логика «следующий/предыдущий» описана в системном промпте — при неясной формулировке
-по умолчанию считается `skip_track`.
-
----
-
-## 🗣 Голос и TTS
-
-- Ответы короткие, без эмодзи, все цифры проговариваются словами — это задано в [prompts.py](prompts.py).
-- Silero держит две модели: русскую и английскую. Текст режется по языку, куски склеиваются
-  с небольшой паузой, поэтому «Deftones» звучит по-английски, а остальное — по-русски.
-- `sounds/readyToListenV2.mp3` — звук начала записи, `sounds/listeningEndV2.mp3` — конца.
+The "next/previous" behavior is described in the system prompt; when the request is ambiguous,
+`skip_track` is used by default.
 
 ---
 
-## 🧩 Как добавить свою команду
+## Voice and TTS
 
-1. Напиши функцию в подходящем модуле — она должна вернуть строку для модели.
-2. Импортируй её в [main.py](main.py) и добавь в `AVAILABLE_FUNCTIONS`.
-3. Опиши схему через `_tool(...)` в [tools.py](tools.py): имя, описание и параметры.
-4. Если нужно, добавь правило в `TOOL_RULES` в [prompts.py](prompts.py), чтобы модель
-   понимала, когда функцию вызывать.
+- Replies are short, without emoji, and all numbers are spelled out as words. This is configured
+  in [prompts.py](prompts.py).
+- Silero keeps two models, Russian and English. The text is split by language, and the chunks are
+  joined with a short pause, so "Deftones" is pronounced in English while the rest is Russian.
+- `sounds/readyToListenV2.mp3` is the recording start sound and `sounds/listeningEndV2.mp3` is
+  the end sound.
 
-Пример:
+---
+
+## Adding a command
+
+1. Write a function in a suitable module. It must return a string for the model.
+2. Import it in [main.py](main.py) and add it to `AVAILABLE_FUNCTIONS`.
+3. Describe the schema with `_tool(...)` in [tools.py](tools.py): name, description, and parameters.
+4. If needed, add a rule to `TOOL_RULES` in [prompts.py](prompts.py) so the model knows when to call it.
+
+Example:
 
 ```python
 # tools.py
-_tool("say_hello", "Поздороваться с пользователем",
-      name=("string", "Имя, к которому обращаемся"))
+_tool("say_hello", "Greet the user",
+      name=("string", "Name to address"))
 ```
 
 ---
 
-## 🩺 Диагностика
+## Diagnostics
 
 ```bash
-python testmic.py                    # уровень микрофона, подобрать threshold в main.py
-python wakeword.py --debug           # score модели и rms (только Linux, нужен arecord)
-python spotifyConnect.py --devices   # список Spotify Connect-устройств
-python web_search.py "курс биткоина" # проверить поиск отдельно
+python testmic.py                    # microphone level, useful for tuning threshold in main.py
+python wakeword.py --debug           # model score and rms (Linux only, requires arecord)
+python spotifyConnect.py --devices   # list Spotify Connect devices
+python web_search.py "bitcoin price" # test web search separately
 ```
 
-Частые причины «ничего не слышит»:
+Common reasons for "it does not hear me":
 
-- микрофон занят другим процессом (`arecord -l` / `KERA_MIC`);
-- порог VAD слишком высокий — смотри `testmic.py` и `record_until_silence(threshold=...)`;
-- wake-word не срабатывает — проверь `THRESHOLD` и `GATE_RMS` в [wakeword.py](wakeword.py).
+- the microphone is busy (`arecord -l` / `KERA_MIC`);
+- the VAD threshold is too high - check `testmic.py` and `record_until_silence(threshold=...)`;
+- the wake word does not trigger - check `THRESHOLD` and `GATE_RMS` in [wakeword.py](wakeword.py).
 
 ---
 
-## 📌 Заметки
+## Notes
 
-- Все пути теперь считаются от каталога проекта: `sounds/`, `kera.onnx`, `.timers.json`.
-- На macOS для звука используется `afplay`, на Linux — `mpg123` для mp3 и `aplay` для wav.
-- `.timers.json` создаётся автоматически и не коммитится.
-- `requirements.txt` без жёстких пинов: удобно ставить свежие версии, но при желании
-  зафиксируй их под своё окружение.
-- `sort_downloads.py` — самостоятельная утилита, к голосовому ассистенту отношения не имеет.
+- All paths are resolved from the project directory: `sounds/`, `kera.onnx`, `.timers.json`.
+- On macOS audio is played with `afplay`; on Linux `mpg123` is used for mp3 and `aplay` for wav.
+- `.timers.json` is created automatically and is not committed.
+- `requirements.txt` has no hard pins: this makes fresh installs easy, but you can pin versions
+  for your own environment.
+- `sort_downloads.py` is a standalone utility and has nothing to do with the voice assistant.

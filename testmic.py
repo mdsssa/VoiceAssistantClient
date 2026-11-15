@@ -11,7 +11,7 @@ try:
     while True:
         data, _ = stream.read(chunk_size)
         volume = np.abs(data).mean()
-        print(f"Уровень: {volume:.0f}")
+        print(f"Level: {volume:.0f}")
 except KeyboardInterrupt:
     pass
 finally:

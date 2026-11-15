@@ -1,6 +1,6 @@
-# Зависимости разбиты по частям: голосовой клиент и STT/TTS-серверы.
+# Dependencies are split by role: voice client and STT/TTS servers.
 
-# --- клиент (main.py, wakeword.py, telegrambot.py) ---
+# --- client (main.py, wakeword.py, telegrambot.py) ---
 requests
 python-dotenv
 numpy
@@ -11,7 +11,7 @@ pyTelegramBotAPI
 onnxruntime
 livekit-wakeword
 
-# --- серверы (sstServer.py, ttsServer.py) ---
+# --- servers (sstServer.py, ttsServer.py) ---
 Flask
 faster-whisper
 torch

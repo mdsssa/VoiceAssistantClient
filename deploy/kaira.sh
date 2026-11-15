@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# kaira.sh — проверка и перезапуск systemd-сервисов Кэры на сервере.
-# Сам по себе ничего не меняет: check только читает, restart перезапускает юниты.
+# kaira.sh - check and restart Kera's systemd services on the server.
+# The script is safe by default: `check` only reads, `restart` only restarts the listed units.
 #
-#   bash deploy/kaira.sh check              проверить файлы, .env, зависимости, порты, юниты
-#   bash deploy/kaira.sh status             только состояние сервисов
-#   bash deploy/kaira.sh restart            перезапустить 5 сервисов (librespot не трогает)
-#   bash deploy/kaira.sh restart tgbot      перезапустить конкретный юнит
-#   bash deploy/kaira.sh logs [unit]        смотреть лог (по умолчанию kaira-wakeword)
+#   bash deploy/kaira.sh check              check files, .env, dependencies, ports, and units
+#   bash deploy/kaira.sh status             show service status only
+#   bash deploy/kaira.sh restart            restart the 5 services (leaves librespot alone)
+#   bash deploy/kaira.sh restart tgbot      restart a single unit
+#   bash deploy/kaira.sh logs [unit]        follow the journal (default: kaira-wakeword)
 
 set -o pipefail
 
@@ -15,30 +15,31 @@ UNITS=(kaira-stt kaira-tts kaira-timers kaira-wakeword tgbot)
 OPTIONAL_UNITS=(librespot)
 fail=0
 
-ok()      { printf '  ✅ %s\n' "$*"; }
-bad()     { printf '  ❌ %s\n' "$*"; fail=1; }
-warn()    { printf '  ⚠️  %s\n' "$*"; }
+ok()      { printf '  [ok]   %s\n' "$*"; }
+bad()     { printf '  [fail] %s\n' "$*"; fail=1; }
+warn()    { printf '  [warn] %s\n' "$*"; }
+info()    { printf '  [info] %s\n' "$*"; }
 section() { printf '\n%s\n' "$*"; }
 
 usage() {
   cat <<'TXT'
-Использование: bash deploy/kaira.sh <команда>
+Usage: bash deploy/kaira.sh <command>
 
-  check          проверить файлы, .env, Python-зависимости, порты и юниты
-  status         показать состояние сервисов
-  restart [u]    перезапустить все сервисы или один указанный
-  logs [u]       смотреть journal (по умолчанию kaira-wakeword)
+  check          check files, .env, Python dependencies, ports, and units
+  status         show service status
+  restart [u]    restart all services or one specified unit
+  logs [u]       follow the journal (default: kaira-wakeword)
 TXT
 }
 
-# --- выбираем python проекта ---
+# --- project python ---
 PY=""
 for candidate in "$ROOT/venv/bin/python3" "$ROOT/.venv/bin/python3"; do
   if [ -x "$candidate" ]; then PY="$candidate"; break; fi
 done
 if [ -z "$PY" ]; then PY="$(command -v python3 || true)"; fi
 
-# --- выбираем systemd: user-юниты приоритетнее системных ---
+# --- systemd: prefer user units over system units ---
 CTL=()
 if command -v systemctl >/dev/null 2>&1; then
   if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -d "/run/user/$(id -u)" ]; then
@@ -65,26 +66,26 @@ env_value() {
 }
 
 check_files() {
-  section "Файлы проекта: $ROOT"
+  section "Project files: $ROOT"
   local f
   for f in main.py wakeword.py timer_watcher.py telegrambot.py sstServer.py ttsServer.py \
            audio.py prompts.py tools.py spotifyConnect.py kera.onnx \
            sounds/readyToListenV2.mp3 sounds/listeningEndV2.mp3; do
-    if [ -e "$ROOT/$f" ]; then ok "$f"; else bad "нет $f"; fi
+    if [ -e "$ROOT/$f" ]; then ok "$f"; else bad "missing $f"; fi
   done
 }
 
 check_env() {
   section ".env"
   if [ ! -f "$ROOT/.env" ]; then
-    bad "нет .env — ассистент не запустится"
+    bad "missing .env - the assistant will not start"
     return
   fi
-  ok ".env на месте"
+  ok ".env found"
 
   local k
   for k in CLIENT_ID CLIENT_SECRET SPOTIFY_TARGET_DEVICE BOT_TOKEN CHAT_ID; do
-    if [ -n "$(env_value "$k")" ]; then ok "$k задан"; else bad "$k не задан"; fi
+    if [ -n "$(env_value "$k")" ]; then ok "$k is set"; else bad "missing $k"; fi
   done
 
   local provider
@@ -92,59 +93,59 @@ check_env() {
   provider="${provider:-local}"
   if [ "$provider" = "groq" ]; then
     if [ -n "$(env_value GROQ_API_KEY)" ]; then
-      ok "LLM_PROVIDER=groq, GROQ_API_KEY задан"
+      ok "LLM_PROVIDER=groq, GROQ_API_KEY is set"
     else
-      bad "LLM_PROVIDER=groq, но GROQ_API_KEY пуст"
+      bad "LLM_PROVIDER=groq but GROQ_API_KEY is empty"
     fi
   else
-    ok "LLM_PROVIDER=$provider (Groq-ключ не нужен)"
+    ok "LLM_PROVIDER=$provider (Groq key not needed)"
     if [ -n "$(env_value LOCAL_LLM_URL)" ]; then
-      ok "LOCAL_LLM_URL задан"
+      ok "LOCAL_LLM_URL is set"
     else
-      warn "LOCAL_LLM_URL не задан — будет http://localhost:8002/..."
+      warn "LOCAL_LLM_URL is not set - defaulting to http://localhost:8002/..."
     fi
   fi
 
   if [ -f "$HOME/.spotify_token_cache.json" ]; then
-    ok "Spotify-токен на месте"
+    ok "Spotify token found"
   else
-    warn "нет ~/.spotify_token_cache.json — нужен python spotifyConnect.py --auth"
+    warn "no ~/.spotify_token_cache.json - run python spotifyConnect.py --auth"
   fi
 }
 
 check_python() {
-  section "Python-зависимости"
+  section "Python dependencies"
   if [ -z "$PY" ] || [ ! -x "$PY" ]; then
-    bad "не найден python ($PY)"
+    bad "python not found ($PY)"
     return
   fi
-  ok "интерпретатор: $PY"
-  "$PY" -c 'import sys; print("  ℹ️  python", sys.version.split()[0])'
+  ok "interpreter: $PY"
+  "$PY" -c 'import sys; print("  [info] python", sys.version.split()[0])'
 
   local m
   for m in requests dotenv numpy sounddevice soundfile ddgs telebot onnxruntime livekit.wakeword flask; do
     if "$PY" -c "import $m" >/dev/null 2>&1; then ok "$m"; else bad "$m"; fi
   done
   for m in faster_whisper torch; do
-    if "$PY" -c "import $m" >/dev/null 2>&1; then ok "$m"; else bad "$m (нужен kaira-stt/kaira-tts)"; fi
+    if "$PY" -c "import $m" >/dev/null 2>&1; then ok "$m"; else bad "$m (needed by kaira-stt/kaira-tts)"; fi
   done
 }
 
 check_ports() {
-  section "Порты"
+  section "Ports"
   if ! command -v ss >/dev/null 2>&1 && ! command -v lsof >/dev/null 2>&1; then
-    warn "нет ss/lsof — порты не проверить"
+    warn "no ss/lsof - cannot check ports"
     return
   fi
   local p unit
   for p in 8001 8003; do
     unit=$([ "$p" = 8001 ] && echo kaira-stt || echo kaira-tts)
     if command -v ss >/dev/null 2>&1 && ss -ltn 2>/dev/null | grep -qE "[:.]$p[[:space:]]"; then
-      ok ":$p слушается ($unit)"
+      ok ":$p is listening ($unit)"
     elif command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1; then
-      ok ":$p слушается ($unit)"
+      ok ":$p is listening ($unit)"
     else
-      bad ":$p не слушается ($unit)"
+      bad ":$p is not listening ($unit)"
     fi
   done
 }
@@ -152,16 +153,16 @@ check_ports() {
 check_services() {
   section "systemd"
   if [ ${#CTL[@]} -eq 0 ]; then
-    warn "юниты kaira-* не найдены (ни systemctl --user, ни systemctl)"
-    warn "запусти из сессии пользователя или проверь: systemctl --user list-units"
+    warn "kaira-* units not found (neither systemctl --user nor systemctl)"
+    warn "run this from the user's session or check: systemctl --user list-units"
     return
   fi
-  ok "контекст: ${CTL[*]}"
+  ok "context: ${CTL[*]}"
 
   local u state exec_line wd user dead arg
   for u in "${UNITS[@]}" "${OPTIONAL_UNITS[@]}"; do
     if ! has_unit "$u"; then
-      warn "нет юнита $u"
+      warn "no unit $u"
       continue
     fi
 
@@ -173,10 +174,10 @@ check_services() {
       exec_line="${exec_line#ExecStart=}"
       exec_line="${exec_line#-}"
       exec_line="${exec_line//%h/$HOME}"
-      printf '       ExecStart: %s\n' "$(printf '%s' "$exec_line" | cut -c1-150)"
+      printf '         ExecStart: %s\n' "$(printf '%s' "$exec_line" | cut -c1-150)"
       for dead in debug.py t_info.py interruptible_speak.py justtest.py; do
         case "$exec_line" in
-          *"$dead"*) bad "$u всё ещё ссылается на удалённый $dead" ;;
+          *"$dead"*) bad "$u still references removed $dead" ;;
         esac
       done
       for arg in $exec_line; do
@@ -186,7 +187,7 @@ check_services() {
         case "$arg" in
           *.py)
             if [ ! -f "$arg" ] && [ ! -f "$ROOT/$arg" ]; then
-              bad "$u: нет файла $arg"
+              bad "$u: missing file $arg"
             fi
             ;;
         esac
@@ -197,84 +198,88 @@ check_services() {
     wd="${wd#-}"
     wd="${wd//%h/$HOME}"
     if [ -n "$wd" ] && [ ! -d "$wd" ]; then
-      bad "$u: WorkingDirectory не существует: $wd"
+      bad "$u: WorkingDirectory does not exist: $wd"
     fi
 
     user=$("${CTL[@]}" cat "$u" 2>/dev/null | grep -m1 '^User=' | cut -d= -f2-)
     if [ "$user" = "root" ]; then
-      warn "$u работает от root — звук и микрофон могут быть недоступны"
+      warn "$u runs as root - audio and microphone may be unavailable"
     fi
   done
 }
 
 check_audio() {
-  section "Аудио"
+  section "Audio"
   if command -v arecord >/dev/null 2>&1; then
     if arecord -l 2>/dev/null | grep -q '^card'; then
-      ok "микрофон виден (arecord -l)"
+      ok "microphone detected (arecord -l)"
     else
-      warn "arecord не видит микрофонов"
+      warn "arecord finds no microphones"
     fi
   else
-    warn "нет arecord (установи alsa-utils)"
+    warn "no arecord (install alsa-utils)"
   fi
 
   if command -v aplay >/dev/null 2>&1; then
     if aplay -l 2>/dev/null | grep -q '^card'; then
-      ok "аудиовыход виден (aplay -l)"
+      ok "audio output detected (aplay -l)"
     else
-      warn "aplay не видит аудиовыходов"
+      warn "aplay finds no audio outputs"
     fi
   else
-    warn "нет aplay (установи alsa-utils)"
+    warn "no aplay (install alsa-utils)"
   fi
 
   if command -v mpg123 >/dev/null 2>&1; then
-    ok "mpg123 на месте"
+    ok "mpg123 found"
   else
-    bad "нет mpg123 — не проиграются sounds/*.mp3"
+    bad "no mpg123 - sounds/*.mp3 will not play"
   fi
 
   if command -v pactl >/dev/null 2>&1; then
     if pactl info >/dev/null 2>&1; then
-      ok "PulseAudio/PipeWire доступен"
+      ok "PulseAudio/PipeWire is reachable"
     else
-      warn "pactl не подключается (проверь user-сессию/XDG_RUNTIME_DIR)"
+      warn "pactl cannot connect (check the user session/XDG_RUNTIME_DIR)"
     fi
   fi
 
   if [ -n "${KERA_MIC:-}" ]; then
     ok "KERA_MIC=$KERA_MIC"
   else
-    warn "KERA_MIC не задан в текущем shell — wakeword возьмёт default"
+    warn "KERA_MIC is not set in this shell - wakeword will use default"
   fi
 }
 
 check_timers_file() {
-  section "Таймеры"
+  section "Timers"
   if [ ! -f "$ROOT/.timers.json" ]; then
-    ok ".timers.json ещё нет — создастся сам"
+    ok ".timers.json does not exist yet - it will be created automatically"
+    return
+  fi
+  if [ -z "$PY" ] || [ ! -x "$PY" ]; then
+    warn "no python - cannot validate .timers.json"
     return
   fi
   if "$PY" -c "import json,sys; json.load(open(sys.argv[1]))" "$ROOT/.timers.json" >/dev/null 2>&1; then
-    ok ".timers.json валиден"
+    ok ".timers.json is valid"
   else
-    bad ".timers.json битый — timer_watcher будет его игнорировать"
+    bad ".timers.json is broken - timer_watcher will ignore it"
   fi
 }
 
 summary() {
   echo
   if [ "$fail" -eq 0 ]; then
-    echo "Итог: всё зелёное ✅"
+    echo "Result: all checks passed"
   else
-    echo "Итог: есть проблемы ❌ — см. выше"
+    echo "Result: problems found - see above"
   fi
 }
 
 restart_units() {
   if [ ${#CTL[@]} -eq 0 ]; then
-    echo "systemd-юниты kaira-* не найдены — нечего перезапускать"
+    echo "kaira-* systemd units not found - nothing to restart"
     exit 1
   fi
 
@@ -286,18 +291,18 @@ restart_units() {
   local u state
   for u in "${list[@]}"; do
     if ! has_unit "$u"; then
-      warn "нет юнита $u"
+      warn "no unit $u"
       continue
     fi
     if "${CTL[@]}" restart "$u" 2>/dev/null; then
       ok "restart $u"
     else
-      bad "restart $u"
+      bad "failed to restart $u"
     fi
   done
 
   sleep 2
-  section "Состояние после рестарта"
+  section "State after restart"
   for u in "${list[@]}"; do
     has_unit "$u" || continue
     state=$("${CTL[@]}" is-active "$u" 2>/dev/null || true)
@@ -308,11 +313,11 @@ restart_units() {
 logs_cmd() {
   local unit="${1:-kaira-wakeword}"
   if [ ${#CTL[@]} -eq 0 ]; then
-    echo "systemd-юниты kaira-* не найдены"
+    echo "kaira-* systemd units not found"
     exit 1
   fi
   if ! has_unit "$unit"; then
-    echo "нет юнита $unit"
+    echo "no unit $unit"
     exit 1
   fi
   if [ "${CTL[0]}" = "systemctl" ] && [ "${CTL[1]:-}" = "--user" ]; then
@@ -354,7 +359,7 @@ case "$cmd" in
     usage
     ;;
   *)
-    echo "Неизвестная команда: $cmd"
+    echo "Unknown command: $cmd"
     usage
     exit 2
     ;;

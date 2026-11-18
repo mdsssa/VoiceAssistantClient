@@ -1,190 +1,260 @@
 # 16x16 LED display
 
-Kera can show what it is doing on a 16x16 addressable RGB panel. The mini-PC
-renders every frame in Python and sends it to **WLED** on an ESP32 over **DDP**
-(UDP port 4048). WLED drives the LEDs; there is no custom firmware to maintain.
+Kera renders a 16x16 RGB frame in Python on the mini-PC and sends it to an ESP32.
+There are two transports:
 
-The same frames are available in a browser preview, so you can design and test
-scenes without the panel. The assistant itself only sends small state events
-(`listening`, `thinking`, `speaking`, `timer`, ...), and a missing display never
-blocks the voice loop.
+| Transport | Firmware | Link | When to use |
+|---|---|---|---|
+| **USB serial** | `firmware/esp32_usb_matrix` | USB cable, 921600 baud | One cable to the ESP32; no Wi-Fi |
+| **WLED / DDP** | WLED | Wi-Fi, UDP 4048 | No custom firmware; WLED web UI |
+
+Both can be active at the same time. The browser preview shows the same frames
+regardless of the transport, so scenes can be designed without hardware.
+
+The look is monochrome by design: one configurable accent color on black. Set it
+with `DISPLAY_ACCENT` or the color picker in the preview.
 
 ## Architecture
 
 ```text
-main.py / wakeword.py / timer_watcher.py / telegrambot.py
+assistant (main/wakeword/timer/telegram)
         |
-        |  fire-and-forget HTTP (display/state, display/level, display/timer)
+        |  fire-and-forget HTTP events
         v
 display.server  (mini-PC, port 8090)
+        |
         |  renderer -> 16x16 RGB888 frame
         |
         +--> browser preview (SSE, /events)
         |
-        +--> WLED over DDP/UDP 4048
-                 |
-                 v
-         ESP32 + 16x16 WS2812B panel
+        +--> USB serial --> ESP32 --> 16x16 WS2812B panel
+        |
+        +--> WLED DDP (UDP 4048) --> ESP32 + WLED --> panel
 ```
 
 ## Hardware
 
-This guide assumes a **WS2812B / NeoPixel** style 16x16 panel: 5 V power, data,
-and ground. If your panel has a HUB75 / 64-pin connector, see the note at the
-end; the PC side is the same, but the ESP32 bridge is different.
+This guide assumes a **WS2812B / NeoPixel** 16x16 panel: 5 V, data, ground. A
+HUB75 panel needs a different firmware bridge; see the end of this document.
 
 ### Bill of materials
 
 | Part | Notes |
 |---|---|
-| ESP32 dev board | ESP32-WROOM-32 or ESP32-S3; USB for flashing |
-| 16x16 WS2812B panel | 256 LEDs, 5 V, common GRB order |
-| 5 V power supply | 10 A recommended (see power budget below) |
+| ESP32 dev board | ESP32-WROOM-32 or ESP32-S3; USB for data and flashing |
+| 16x16 WS2812B panel | 256 LEDs, 5 V, usually GRB order |
+| 5 V power supply | 5-10 A for the panel |
+| USB cable | mini-PC to ESP32 |
 | 1000 uF capacitor | Across panel 5 V / GND |
-| 330-470 ohm resistor | In series with the data line |
-| 74AHCT125 level shifter | 3.3 V ESP32 data -> 5 V panel data |
+| 330-470 ohm resistor | In series with data |
+| 74AHCT125 level shifter | 3.3 V ESP32 data to 5 V panel |
 | Fuse | 5-10 A on the 5 V feed |
-| Wires | 18-20 AWG for power, short data wire |
-| Diffuser / grid | Optional, makes 16x16 pixels look much better |
+| Diffuser / grid | Optional but recommended |
 
-### Power budget
+### Power: USB is not enough for the panel
 
 A WS2812B LED can draw about 60 mA at full white. 256 LEDs is 15.4 A worst case.
-Do not plan for that continuously:
+USB 2.0 gives 0.5 A, USB 3.0 about 0.9 A, and even a 5 V/3 A USB-C port is
+marginal for a bright 16x16 panel.
 
-- use a 5 V **10 A** supply and enable WLED's automatic brightness limiter;
-- set WLED max current to about **5000 mA** and brightness limit to **128**;
-- typical animations use 2-4 A; full-white test patterns are the worst case;
-- inject 5 V at two corners of the panel and use a common ground everywhere.
+Use the mini-PC USB port for **the ESP32 and data only**. Power the panel from a
+separate 5 V 5-10 A supply, and connect all grounds together. The firmware
+limits current to 5000 mA by default; a real 5 V supply with a fuse protects the
+panel and wiring.
 
-Do not power the panel from the ESP32 5 V pin. Power the ESP32 from USB (or a
-separate 5 V feed) and the panel from the PSU; connect all grounds together.
+If you absolutely want a single cable, use a USB-C PD 5 V/3 A source and lower
+`MAX_CURRENT_MA` and brightness. Expect dim output and possible port protection
+trips; this is not the recommended build.
 
-### Wiring
+### Wiring (USB serial)
 
 ```text
-5V PSU + ---- fuse ----+------------ panel 5V (inject at both ends)
-                       |
-                    1000uF
-                       |
-5V PSU - ----+---------+------------ panel GND ---- ESP32 GND
-             |
+mini-PC USB  ---- ESP32 (data + ESP32 power)
+5V PSU  +  ---- fuse ---- panel 5V (inject at both ends)
+5V PSU  -  ---- panel GND ---- ESP32 GND
 ESP32 GPIO16 -- 330R -- 74AHCT125 -- panel DIN
-ESP32 USB -------------------------- mini-PC (flashing / power)
+1000 uF across panel 5V / GND
 ```
 
-WLED defaults used in this project:
+The ESP32 and panel must share ground. Keep the data wire short and pair it
+with ground if possible.
 
-- LED type: WS2812B
-- color order: GRB
-- data pin: GPIO16 (change in WLED if you wire another pin)
-- length: 256
-- 2D matrix: 16 x 16
-- serpentine: enable if your panel is wired in a snake pattern
-- max current: 5000 mA
-- brightness limit: 128-180
+## Option A: USB serial
 
-## WLED setup
+### Build the firmware
 
-1. Flash WLED 0.14 or newer from <https://install.wled.me/> over USB.
-2. Connect to the WLED access point, join your Wi-Fi, and open the WLED UI.
-3. In **Settings > LED Preferences** set the LED type, GPIO, length, and 2D
-   matrix (16x16, serpentine if needed).
-4. Set the current limit and brightness limit. Save and reboot.
-5. Give the ESP32 a static IP or a DHCP reservation and note the address.
-6. In **Settings > Sync Interfaces**, make sure Realtime/DDP is enabled. The PC sends UDP packets to port `4048`.
-7. Test the panel with WLED's built-in effects and color patterns first.
-
-The ESP32 and the mini-PC must be on the same network. Allow UDP `4048` from the
-mini-PC to the ESP32 if you have a firewall.
-
-## Run the display daemon
-
-On the mini-PC, in the project directory:
+PlatformIO:
 
 ```bash
-source venv/bin/activate
+cd firmware/esp32_usb_matrix
+pio run -t upload
+```
+
+Arduino IDE:
+
+1. Install **FastLED**.
+2. Create an ESP32 sketch and paste `firmware/esp32_usb_matrix/src/main.cpp`.
+3. Set the board and port, then upload.
+
+Edit `src/main.cpp` if needed:
+
+| Define | Default | Meaning |
+|---|---|---|
+| `LED_PIN` | 16 | ESP32 data pin |
+| `SERPENTINE` | 1 | Panel wiring snakes on odd rows |
+| `MAX_CURRENT_MA` | 5000 | FastLED power limit |
+
+The boot sequence flashes red, green, and blue, then blanks until frames arrive.
+
+### Run the display daemon
+
+Install the optional serial dependency if it is not already installed:
+
+```bash
+pip install pyserial
+```
+
+Find the stable device name:
+
+```bash
+ls /dev/serial/by-id/
+```
+
+Start the daemon:
+
+```bash
+SERIAL_PORT=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0 \
+SERIAL_BAUD=921600 \
+python -m display.server
+```
+
+If the user is not in the `dialout` group on Ubuntu:
+
+```bash
+sudo usermod -aG dialout "$USER"
+# log out and back in
+```
+
+### Protocol
+
+```text
+A5 5A | type 0x01 | length (2 bytes, little endian) | 768 RGB bytes | crc8(payload)
+```
+
+- Row-major, 16x16, RGB888.
+- CRC-8 polynomial `0x07`, initial value `0`.
+- 30 fps at 921600 baud is about 23 KB/s.
+- If no valid frame arrives for 3 seconds, the panel blanks.
+- The firmware maps serpentine rows to the physical panel.
+
+## Option B: WLED over Wi-Fi
+
+1. Flash WLED 0.14 or newer from <https://install.wled.me/>.
+2. Join Wi-Fi and open the WLED UI.
+3. In **Settings > LED Preferences** set WS2812B, GRB, GPIO16, length 256,
+   2D matrix 16x16, serpentine if needed, max current 5000 mA, brightness
+   128-180.
+4. In **Settings > Sync Interfaces** make sure Realtime/DDP is enabled.
+5. Give the ESP32 a static IP or DHCP reservation.
+6. Start the daemon with the ESP32 address:
+
+```bash
 WLED_HOST=192.168.1.50 python -m display.server
 ```
 
-Open the preview:
+Both transports can be used together; set both `SERIAL_PORT` and `WLED_HOST`.
 
-```text
-http://<mini-pc>:8090
-```
+## Preview and test visualization
 
-Run without `WLED_HOST` to use only the browser preview:
+Run without any transport to use the browser preview only:
 
 ```bash
 python -m display.server
 ```
 
-> The preview API has no authentication. Run it on a trusted LAN, or bind it to
-> `127.0.0.1` with `DISPLAY_BIND=127.0.0.1` if only the mini-PC needs it.
+Open:
 
-Environment variables:
+```text
+http://<mini-pc>:8090
+```
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `WLED_HOST` | empty | ESP32 IP; empty means preview only |
-| `WLED_PORT` | `4048` | DDP UDP port |
-| `DISPLAY_PORT` | `8090` | HTTP preview/API port |
-| `DISPLAY_BIND` | `0.0.0.0` | Interface for the preview server |
-| `DISPLAY_FPS` | `30` | Render rate and DDP send rate |
-| `KAIRA_DISPLAY` | `1` | Set to `0` to disable assistant events |
-| `KAIRA_DISPLAY_URL` | `http://127.0.0.1:8090` | Where the assistant sends events |
+The page shows a 16x16 canvas with the exact frames that go to the panel. It has:
 
-The preview uses Server-Sent Events and shows exactly what is sent to WLED, so
-it is also the test visualization.
+- state buttons: idle, listening, thinking, speaking, error, timer, alarm, music;
+- listening/speaking level slider;
+- brightness slider;
+- accent color picker;
+- timer input;
+- scrolling text input;
+- test patterns: color bars, checkerboard, gradient, corners, snake;
+- a demo mode that cycles states.
 
-## Test patterns
+The preview API has no authentication. Run it on a trusted LAN, or bind it to
+`127.0.0.1` with `DISPLAY_BIND=127.0.0.1`.
 
-The preview page has buttons for color bars, checkerboard, gradient, corner
-markers, and a snake. They are useful for checking:
+### Test patterns
 
-- panel orientation and serpentine setting;
-- color order (GRB vs RGB);
-- power and brightness limits;
-- that every LED is alive.
+Test patterns intentionally use real RGB colors so you can check panel order,
+orientation, and dead LEDs. Normal sprites use only the selected accent color.
 
-The same patterns can be sent from the command line:
+- `bars`: red, green, blue, white columns;
+- `checker`: every-other 2x2 block;
+- `gradient`: RGB gradient;
+- `corners`: red top-left, green top-right, blue bottom-left, white bottom-right;
+- `snake`: a pixel walking the border.
+
+### Accent color
+
+Default is cyan (`#00c8ff`). Change it permanently with:
 
 ```bash
-curl -X POST http://127.0.0.1:8090/api/test \
-  -H 'Content-Type: application/json' \
-  -d '{"pattern":"corners"}'
+DISPLAY_ACCENT=#ff8800 python -m display.server
 ```
+
+The server also reads the project `.env` file, so `WLED_HOST`, `SERIAL_PORT`, and
+`DISPLAY_ACCENT` can live there too.
+
+Or use the color picker in the preview; the change is live and is reflected in
+`/api/status`.
+
+Regenerate the still/GIF previews (needs Pillow):
+
+```bash
+pip install pillow
+python -m display.demo
+```
+
+`docs/display-preview.png` and `docs/display-preview.gif` are committed examples.
 
 ## API
 
-All endpoints are local to the display daemon.
-
 | Method | Path | Body | What it does |
 |---|---|---|---|
-| POST | `/api/state` | `{"state":"listening"}` | Set `idle`, `listening`, `thinking`, `speaking`, `error`, `timer`, `alarm`, or `music` |
-| POST | `/api/level` | `{"level":0.6}` | Audio level for listening/speaking/music |
-| POST | `/api/text` | `{"text":"TIMER 5:00","color":"#00c8ff"}` | Scrolling text overlay |
+| POST | `/api/state` | `{"state":"listening"}` | Set a state |
+| POST | `/api/level` | `{"level":0.6}` | Audio level |
+| POST | `/api/text` | `{"text":"TIMER 5:00","color":"#00c8ff"}` | Scrolling text; color optional |
 | POST | `/api/timer` | `{"seconds":300}` | Countdown shown in idle |
-| POST | `/api/brightness` | `{"value":128}` | Frame brightness, 0-255 |
+| POST | `/api/brightness` | `{"value":128}` | Frame brightness |
+| POST | `/api/accent` | `{"color":"#ff8800"}` | Set the accent color |
 | POST | `/api/test` | `{"pattern":"bars"}` | Test pattern |
 | POST | `/api/clear` | `{}` | Reset state, text, timer, pattern |
-| GET | `/api/status` | - | Live state |
+| GET | `/api/status` | - | Live state and transport status |
 | GET | `/events` | - | SSE stream with base64 frames |
 
 ## Assistant integration
 
-The assistant already emits states when the display package is installed:
+The assistant emits states when the display package is installed:
 
-- `wakeword.py`: `idle` -> `listening` on wake -> `idle` after the turn;
 - `main.py`: `listening` while recording, `thinking` during STT/LLM, `speaking`
   during TTS, `error` on failure;
+- `wakeword.py`: `idle` -> `listening` -> `idle`;
 - `timer_watcher.py`: countdown in idle, `timer`/`alarm` when a timer fires;
 - `telegrambot.py`: `thinking` while handling a message, then `idle`.
 
 The client is fire-and-forget. If the daemon is not running, the assistant
 continues normally.
 
-### systemd user unit (optional)
+### systemd user unit (USB example)
 
 `~/.config/systemd/user/kaira-display.service`:
 
@@ -198,7 +268,9 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=%h/VoiceAssistantClient
 ExecStart=%h/VoiceAssistantClient/venv/bin/python -m display.server
-Environment=WLED_HOST=192.168.1.50
+Environment=SERIAL_PORT=/dev/serial/by-id/usb-REPLACE-ME-if00-port0
+Environment=SERIAL_BAUD=921600
+Environment="DISPLAY_ACCENT=#00c8ff"
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
 RestartSec=3
@@ -213,83 +285,61 @@ systemctl --user enable --now kaira-display
 systemctl --user status kaira-display
 ```
 
-The existing `deploy/kaira.sh` can restart it explicitly:
+For WLED, replace `SERIAL_PORT` with `Environment=WLED_HOST=192.168.1.50`.
+`deploy/kaira.sh` can restart it explicitly:
 
 ```bash
 bash deploy/kaira.sh restart kaira-display
 ```
 
-## Preview images
-
-`docs/display-preview.png` is a contact sheet of the scenes.
-`docs/display-preview.gif` is a short animation.
-
-Regenerate them (needs Pillow):
-
-```bash
-pip install pillow
-python -m display.demo
-```
-
 ## Troubleshooting
 
-**Preview works, panel is black**
+**USB: nothing on the panel**
 
-- Check `WLED_HOST` and ping the ESP32.
-- Check that UDP `4048` is not blocked.
-- In WLED, confirm the 2D matrix is 16x16 and the length is 256.
-- Try a WLED built-in effect first; if that works, the issue is DDP/network.
+- Check `ls /dev/serial/by-id/` and the `SERIAL_PORT` path.
+- Check permissions: user in `dialout`, then log out and back in.
+- Confirm the firmware boot flash (red/green/blue). If it does not flash, the
+  ESP32 is not powered or the pin/board is wrong.
+- Check the baud rate: 921600 on both sides.
+- The firmware blanks after 3 seconds without valid frames.
+
+**USB: random colors or flicker**
+
+- Check common ground between ESP32 and panel PSU.
+- Use the 330 ohm resistor and level shifter.
+- Keep the USB cable and data wire away from power wires.
+- Do not power the panel from USB; check the 5 V supply and fuse.
+
+**WLED: preview works but the panel is black**
+
+- Check `WLED_HOST`, ping the ESP32, and allow UDP 4048.
+- Confirm the 2D matrix is 16x16 and length is 256.
+- Test a WLED built-in effect first.
 
 **Wrong colors**
 
-- Change color order in WLED (GRB, RGB, BRG).
-- WS2812B panels are usually GRB.
+- Set the color order in WLED or in `FastLED.addLeds` (GRB/RGB/BRG).
 
 **Mirrored or scrambled image**
 
-- Enable or disable serpentine in the WLED 2D matrix settings.
-- Check panel orientation (rotate 0/90/180/270).
-- Use the `corners` test pattern: red must be top-left, green top-right,
-  blue bottom-left, white bottom-right.
+- Toggle `SERPENTINE` in the firmware, or serpentine in WLED.
+- Use the `corners` pattern: red must be top-left, green top-right, blue
+  bottom-left, white bottom-right.
 
-**Flicker or random pixels**
-
-- Use the 330-470 ohm data resistor and a level shifter.
-- Keep the data wire short and pair it with ground.
-- Inject power at both ends of the panel.
-- Add the 1000 uF capacitor near the first LED.
-
-**ESP32 reboots when the panel is bright**
-
-- The panel is drawing more current than the supply can deliver.
-- Lower WLED max current and brightness limit.
-- Use a bigger 5 V supply and thicker power wires.
-
-**Browser preview does not open**
+**Preview does not open**
 
 - Check `http://127.0.0.1:8090/api/status` on the mini-PC.
-- Check the port and firewall; `DISPLAY_BIND=0.0.0.0` is needed for LAN access.
-- If the daemon is down, the assistant is unaffected.
-
-**The display freezes on "thinking"**
-
-- The renderer falls back to idle after 45 seconds without events.
-- Check the assistant logs and the daemon log.
+- Check `DISPLAY_BIND` and the firewall.
 
 ## HUB75 panels
 
-WLED does not drive HUB75 panels. If your 16x16 panel has a 64-pin HUB75
-connector instead of three wires, you need a different firmware bridge, for
-example `ESP32-HUB75-MatrixPanel-DMA`. The renderer, web preview, API, and
-assistant integration in `display/` remain the same; only the frame transport
-to the panel changes. In that case the ESP32 must receive frames over Wi-Fi or a
-serial link and push them to the HUB75 panel.
+WLED and this firmware target WS2812B. A HUB75 panel has a 64-pin connector and
+needs a different library (`ESP32-HUB75-MatrixPanel-DMA`). The renderer, preview,
+API, and assistant integration stay the same; only the ESP32 bridge changes.
 
 ## Notes
 
-- The panel is a status display, not a text console. The 3x5 font is readable
-  but short; long messages scroll.
-- The preview and the physical panel share one renderer, so there is no
-  "works in the browser but not on the matrix" surprise.
-- The display daemon is intentionally separate from the assistant, so you can
-  restart it without touching the voice loop.
+- The display is a status display, not a text console. Long messages scroll.
+- The preview and the physical panel share one renderer.
+- The display daemon is separate from the assistant: restart it without touching
+  the voice loop.

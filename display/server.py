@@ -18,11 +18,19 @@ import time
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 
+try:  # optional: allow display settings in the project .env
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    pass
+
 from .ddp import DDPSender
 from .renderer import Renderer, STATES
+from .scenes import DEFAULT_ACCENT
 
 
-def _parse_color(value: str | None, default=(0, 200, 255)):
+def _parse_color(value: str | None, default=DEFAULT_ACCENT):
     if not value:
         return default
     value = value.strip().lstrip("#")
@@ -39,13 +47,27 @@ def create_app() -> Flask:
 
     wled_host = os.environ.get("WLED_HOST", "").strip()
     wled_port = int(os.environ.get("WLED_PORT", "4048"))
+    serial_port = os.environ.get("SERIAL_PORT", "").strip()
+    serial_baud = int(os.environ.get("SERIAL_BAUD", "921600"))
+    accent = _parse_color(os.environ.get("DISPLAY_ACCENT"), DEFAULT_ACCENT)
     fps = int(os.environ.get("DISPLAY_FPS", "30"))
-    ddp = DDPSender(wled_host, port=wled_port) if wled_host else None
 
-    renderer = Renderer(ddp=ddp, fps=fps)
+    ddp = DDPSender(wled_host, port=wled_port) if wled_host else None
+    serial_link = None
+    if serial_port:
+        try:
+            from .serial_link import SerialLink
+
+            serial_link = SerialLink(serial_port, serial_baud)
+        except Exception as e:
+            print(f"Serial display disabled: {e}")
+
+    renderer = Renderer(ddp=ddp, serial_link=serial_link, fps=fps)
+    renderer.state.set_accent(accent)
     renderer.start()
     app.config["RENDERER"] = renderer
     app.config["WLED_HOST"] = wled_host
+    app.config["SERIAL_PORT"] = serial_port
 
     @app.get("/")
     def index():
@@ -78,8 +100,16 @@ def create_app() -> Flask:
     def set_text():
         data = request.get_json(silent=True) or {}
         value = str(data.get("text", ""))
-        renderer.state.set_text(value, _parse_color(data.get("color")))
+        color = data.get("color")
+        renderer.state.set_text(value, _parse_color(color, renderer.state.accent) if color else None)
         return jsonify({"ok": True})
+
+    @app.post("/api/accent")
+    def set_accent():
+        data = request.get_json(silent=True) or {}
+        color = _parse_color(data.get("color"), renderer.state.accent)
+        renderer.state.set_accent(color)
+        return jsonify({"ok": True, "accent": color})
 
     @app.post("/api/timer")
     def set_timer():
@@ -140,9 +170,11 @@ def main() -> None:
     host = os.environ.get("DISPLAY_BIND", "0.0.0.0")
     port = int(os.environ.get("DISPLAY_PORT", "8090"))
     wled = app.config.get("WLED_HOST") or ""
+    serial_port = app.config.get("SERIAL_PORT") or ""
     shown_host = host if host not in ("0.0.0.0", "::") else "<mini-pc>"
     print(f"Kera display preview: http://{shown_host}:{port}")
-    print(f"WLED DDP target: {wled or 'disabled (preview only)'}")
+    print(f"WLED DDP target: {wled or 'disabled'}")
+    print(f"USB serial target: {serial_port or 'disabled'}")
     app.run(host=host, port=port, threaded=True)
 
 

@@ -11,6 +11,9 @@ pyTelegramBotAPI
 onnxruntime
 livekit-wakeword
 
+# --- 16x16 display over USB serial (optional) ---
+pyserial
+
 # --- servers (sstServer.py, ttsServer.py) ---
 Flask
 faster-whisper

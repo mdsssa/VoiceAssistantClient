@@ -94,6 +94,15 @@
   button[data-pattern] { color: #c8d6ea; }
   label { display: flex; align-items: center; gap: 8px; margin: 8px 0; color: var(--muted); font-size: 12px; }
   input[type="range"] { flex: 1; accent-color: var(--cyan); }
+  input[type="color"] {
+    width: 44px;
+    height: 28px;
+    padding: 2px;
+    background: #080d15;
+    border: 1px solid #263a54;
+    border-radius: 8px;
+    cursor: pointer;
+  }
   input[type="number"], input[type="text"] {
     flex: 1;
     min-width: 0;
@@ -152,6 +161,9 @@
       <label>Brightness
         <input id="brightness" type="range" min="0" max="255" value="255">
       </label>
+      <label>Accent
+        <input id="accent" type="color" value="#00c8ff">
+      </label>
       <div class="row">
         <label style="flex:1">Timer (s)
           <input id="timerInput" type="number" min="0" step="1" value="300">
@@ -200,6 +212,14 @@
   const fpsEl = document.getElementById("fps");
   const wledEl = document.getElementById("wled");
   const timerEl = document.getElementById("timer");
+  const accentEl = document.getElementById("accent");
+
+  function rgbToHex(rgb) {
+    return "#" + rgb.map((value) => {
+      const clamped = Math.max(0, Math.min(255, Math.round(value)));
+      return clamped.toString(16).padStart(2, "0");
+    }).join("");
+  }
 
   function drawFrame(base64) {
     const raw = atob(base64);
@@ -229,7 +249,13 @@
     stateEl.textContent = msg.state;
     fpsEl.textContent = msg.fps || 0;
     timerEl.textContent = msg.timer || 0;
-    wledEl.textContent = msg.wled ? "WLED DDP" : "preview only";
+    wledEl.textContent = msg.wled && msg.serial ? "WLED + USB"
+      : msg.wled ? "WLED DDP"
+      : msg.serial ? "USB serial"
+      : "preview only";
+    if (Array.isArray(msg.accent) && document.activeElement !== accentEl) {
+      accentEl.value = rgbToHex(msg.accent);
+    }
     document.querySelectorAll("#states button").forEach((button) => {
       button.classList.toggle("active", button.dataset.state === msg.state);
     });
@@ -245,6 +271,10 @@
 
   document.getElementById("brightness").addEventListener("input", (event) => {
     post("/api/brightness", { value: Number(event.target.value) });
+  });
+
+  accentEl.addEventListener("input", (event) => {
+    post("/api/accent", { color: event.target.value });
   });
 
   document.getElementById("setTimer").addEventListener("click", () => {

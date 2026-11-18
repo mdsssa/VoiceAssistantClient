@@ -37,6 +37,9 @@ wakeConfig.json
 test_tts.wav
 *.log
 
+# --- PlatformIO ---
+.pio/
+
 # --- local utilities and drafts ---
 sort_downloads.py
 test.py

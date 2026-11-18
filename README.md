@@ -94,8 +94,9 @@ Separate processes:
 | [ttsServer.py](ttsServer.py) | Flask + Silero, `:8003` |
 | [testmic.py](testmic.py) | Prints microphone level - useful for tuning the VAD threshold |
 | [deploy/kaira.sh](deploy/kaira.sh) | Checks and restarts systemd services on the server |
-| [display/](display/) | 16x16 renderer, preview daemon, and DDP client for WLED |
-| [docs/display.md](docs/display.md) | Hardware, WLED, and 16x16 display setup |
+| [display/](display/) | 16x16 renderer, preview daemon, USB serial and DDP transports |
+| [firmware/esp32_usb_matrix/](firmware/esp32_usb_matrix/) | ESP32 firmware for frames over USB serial |
+| [docs/display.md](docs/display.md) | Hardware, power, USB serial, WLED, and display setup |
 | [sort_downloads.py](sort_downloads.py) | Standalone `~/Downloads` cleanup utility, unrelated to the assistant |
 
 ---
@@ -205,9 +206,15 @@ If STT, TTS, or the LLM run on another machine, change `STT_URL` in [main.py](ma
 
 ## 16x16 LED display
 
-Kera can drive a 16x16 WS2812B panel through WLED. The mini-PC renders every frame in Python and
-sends it over DDP; the ESP32 only displays it. The same frames are served by a browser preview,
-so the look can be tested without hardware.
+Kera can drive a 16x16 WS2812B panel. The mini-PC renders every frame in Python; the ESP32 only
+displays it. Two transports are supported:
+
+- **USB serial** with the bundled firmware in `firmware/esp32_usb_matrix/`;
+- **WLED over Wi-Fi** using DDP (no custom firmware).
+
+The same frames are served by a browser preview, so the look can be tested without hardware. The
+sprites are monochrome: one accent color on black, configurable with `DISPLAY_ACCENT` or the
+color picker in the preview.
 
 ![Display states](docs/display-preview.png)
 
@@ -216,13 +223,18 @@ so the look can be tested without hardware.
 python -m display.server
 # open http://<mini-pc>:8090
 
-# with the panel
+# USB serial panel
+SERIAL_PORT=/dev/serial/by-id/usb-REPLACE-ME-if00-port0 python -m display.server
+
+# WLED panel
 WLED_HOST=192.168.1.50 python -m display.server
 ```
 
-The assistant automatically publishes `idle`, `listening`, `thinking`, `speaking`, `error`,
-`timer`, `alarm`, and `music`. If the display daemon is down, the voice loop is unaffected.
-Wiring, power budget, WLED settings, test patterns, and troubleshooting are in
+The USB port powers the ESP32 and carries data; the LED panel needs its own 5 V supply. The
+assistant automatically publishes `idle`, `listening`, `thinking`, `speaking`, `error`, `timer`,
+`alarm`, and `music`. If the display daemon is down, the voice loop is unaffected.
+
+Wiring, power budget, firmware build, WLED settings, test patterns, and troubleshooting are in
 [docs/display.md](docs/display.md).
 
 ---
@@ -231,8 +243,8 @@ Wiring, power budget, WLED settings, test patterns, and troubleshooting are in
 
 Services: `kaira-stt`, `kaira-tts`, `kaira-timers`, `kaira-wakeword`, `tgbot`, plus a separate
 `librespot` (left untouched). Entry points have not changed, so the unit files do not need to be
-edited: after `git pull`, restart the services. There are no new pip dependencies, so
-`pip install` is not required after an update.
+edited: after `git pull`, restart the services. The assistant itself has no new dependencies; the
+optional USB display needs `pyserial` (`pip install pyserial`).
 
 ```bash
 bash deploy/kaira.sh check             # read-only: files, .env, dependencies, ports, units

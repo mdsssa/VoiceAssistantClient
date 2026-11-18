@@ -7,10 +7,9 @@ import time
 
 from . import scenes
 from .canvas import Color
+from .scenes import DEFAULT_ACCENT
 
 STATES = {"idle", "listening", "thinking", "speaking", "error", "timer", "alarm", "music"}
-
-CYAN: Color = (0, 200, 255)
 
 
 class DisplayState:
@@ -21,8 +20,9 @@ class DisplayState:
         self.state = "idle"
         self.level = 0.0
         self.brightness = 255
+        self.accent: Color = DEFAULT_ACCENT
         self.text = ""
-        self.text_color: Color = CYAN
+        self.text_color: Color | None = None
         self.pattern = ""
         self._text_until = 0.0
         self._pattern_until = 0.0
@@ -48,7 +48,12 @@ class DisplayState:
             self.brightness = max(0, min(255, int(value)))
             self.last_event = time.monotonic()
 
-    def set_text(self, text: str, color: Color = CYAN, ttl: float = 10.0) -> None:
+    def set_accent(self, color: Color) -> None:
+        with self._lock:
+            self.accent = tuple(max(0, min(255, int(c))) for c in color)
+            self.last_event = time.monotonic()
+
+    def set_text(self, text: str, color: Color | None = None, ttl: float = 10.0) -> None:
         with self._lock:
             self.text = (text or "").strip()[:64]
             self.text_color = color
@@ -93,6 +98,7 @@ class DisplayState:
                 "state": self.state,
                 "level": round(self.level, 3),
                 "brightness": self.brightness,
+                "accent": self.accent,
                 "text": self.text,
                 "text_color": self.text_color,
                 "pattern": self.pattern,
@@ -104,6 +110,7 @@ class DisplayState:
             self.state = "idle"
             self.level = 0.0
             self.text = ""
+            self.text_color = None
             self.pattern = ""
             self._text_until = 0.0
             self._pattern_until = 0.0
@@ -113,20 +120,31 @@ class DisplayState:
 
 
 class Renderer:
-    """Renders frames at a fixed rate and optionally pushes them over DDP."""
+    """Renders frames at a fixed rate and pushes them to configured links."""
 
-    def __init__(self, ddp=None, fps: int = 30) -> None:
+    def __init__(self, ddp=None, serial_link=None, fps: int = 30) -> None:
         self.state = DisplayState()
         self.ddp = ddp
+        self.serial_link = serial_link
         self.fps = max(1, min(60, int(fps)))
         self._lock = threading.Lock()
         self._frame = bytes(16 * 16 * 3)
-        self._meta: dict = {"state": "idle", "timer": 0, "fps": 0, "wled": ddp is not None}
+        self._meta: dict = {
+            "state": "idle",
+            "level": 0.0,
+            "brightness": 255,
+            "accent": DEFAULT_ACCENT,
+            "timer": 0,
+            "pattern": "",
+            "fps": 0,
+            "wled": ddp is not None,
+            "serial": serial_link is not None,
+        }
         self._running = False
         self._thread: threading.Thread | None = None
         self._frames = 0
         self._fps = 0.0
-        self._ddp_errors = 0
+        self._send_errors = 0
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -153,8 +171,11 @@ class Renderer:
                 {
                     "fps": round(self._fps, 1),
                     "wled": self.ddp is not None,
+                    "serial": self.serial_link is not None,
                     "frames": self._frames,
-                    "ddp_errors": self._ddp_errors,
+                    "ddp_errors": getattr(self.ddp, "errors", 0) if self.ddp else 0,
+                    "serial_errors": getattr(self.serial_link, "errors", 0) if self.serial_link else 0,
+                    "send_errors": self._send_errors,
                 }
             )
         return meta
@@ -177,16 +198,19 @@ class Renderer:
                     timer_seconds=meta["timer"],
                     brightness=meta["brightness"],
                     pattern=meta["pattern"],
+                    accent=meta["accent"],
                 )
             except Exception as e:  # a broken scene should not kill the panel
                 print(f"[display] render error: {e}")
                 frame = bytes(16 * 16 * 3)
 
-            if self.ddp is not None:
+            for link in (self.ddp, self.serial_link):
+                if link is None:
+                    continue
                 try:
-                    self.ddp.send(frame)
-                except OSError:
-                    self._ddp_errors += 1
+                    link.send(frame)
+                except Exception:
+                    self._send_errors += 1
 
             with self._lock:
                 self._frame = frame
@@ -201,12 +225,16 @@ class Renderer:
                     "state": meta["state"],
                     "level": meta["level"],
                     "brightness": meta["brightness"],
+                    "accent": meta["accent"],
                     "timer": meta["timer"],
                     "pattern": meta["pattern"],
                     "fps": round(self._fps, 1),
                     "wled": self.ddp is not None,
+                    "serial": self.serial_link is not None,
                     "frames": self._frames,
-                    "ddp_errors": self._ddp_errors,
+                    "ddp_errors": getattr(self.ddp, "errors", 0) if self.ddp else 0,
+                    "serial_errors": getattr(self.serial_link, "errors", 0) if self.serial_link else 0,
+                    "send_errors": self._send_errors,
                 }
 
             sleep_for = 1.0 / self.fps - (time.monotonic() - frame_started)

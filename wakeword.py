@@ -10,6 +10,8 @@ import numpy as np
 import onnxruntime as ort
 from livekit.wakeword import WakeWordModel
 
+import display
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "kera.onnx")
 MODEL_NAME = "kera"
@@ -99,30 +101,40 @@ def run_main_script():
 
 async def main_mac():
     print("Жду 'Кэра'...")
+    display.state("idle")
     while True:
         try:
             conf = await wait_for_wakeword_mac()
             print(f"Finaly Heard! (conf={conf:.2f})")
+            display.state("listening")
             await asyncio.to_thread(run_main_script)
+            display.state("idle")
             print("Жду 'Кэра'...")
         except Exception as e:
             # микрофон/модель могут отвалиться — ждём и пробуем снова,
             # вместо того чтобы уходить в рестарт-луп systemd
             print(f"[wakeword error] {e}")
+            display.state("error")
             await asyncio.sleep(3)
+            display.state("idle")
 
 
 def main_linux():
     print(f"Жду 'Кэра'... (микрофон {LINUX_MIC})")
+    display.state("idle")
     while True:
         try:
             conf = wait_for_wakeword_linux()
             print(f"Finaly Heard! (conf={conf:.2f})")
+            display.state("listening")
             run_main_script()
+            display.state("idle")
             print("Жду 'Кэра'...")
         except Exception as e:
             print(f"[wakeword error] {e}")
+            display.state("error")
             time.sleep(3)
+            display.state("idle")
 
 
 def debug_scores():

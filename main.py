@@ -10,6 +10,7 @@ import soundfile as sf
 from dotenv import load_dotenv
 
 from audio import play_sound, speak
+import display
 from prompts import VOICE_PROMPT
 from recipes import search_and_send_recipe
 from spotifyConnect import (
@@ -81,6 +82,7 @@ def record_until_silence(threshold=800, silence_duration=1.5, max_duration=15):
     """Пишет звук, пока не наступит тишина после того, как человек начал говорить.
     На время записи ставит Spotify на паузу, чтобы музыка не забивала микрофон
     и не триггерила VAD как "пользователь говорит"."""
+    display.state("listening")
     was_playing = pause_music()
 
     frames = []
@@ -99,6 +101,7 @@ def record_until_silence(threshold=800, silence_duration=1.5, max_duration=15):
             data, _ = stream.read(chunk_size)
             frames.append(data.copy())
             volume = np.abs(data).mean()
+            display.level(min(1.0, volume / 8000.0))
 
             if volume > threshold:
                 started_speaking = True
@@ -196,16 +199,26 @@ def ask_llm(text, history) -> str:
 
 
 def one_exchange(history):
-    audio = record_until_silence()
-    if audio is None:
-        return
+    try:
+        audio = record_until_silence()
+        if audio is None:
+            display.state("idle")
+            return
 
-    play_sound(SOUND_LISTENING_END)
-    text = transcribe(audio)
-    if not text.strip():
-        return
+        display.state("thinking")
+        play_sound(SOUND_LISTENING_END)
+        text = transcribe(audio)
+        if not text.strip():
+            display.state("idle")
+            return
 
-    speak(ask_llm(text, history))
+        reply = ask_llm(text, history)
+        display.state("speaking")
+        speak(reply)
+        display.state("idle")
+    except Exception as e:
+        print(f"[voice error] {e}")
+        display.state("error")
 
 
 def main():

@@ -94,6 +94,8 @@ Separate processes:
 | [ttsServer.py](ttsServer.py) | Flask + Silero, `:8003` |
 | [testmic.py](testmic.py) | Prints microphone level - useful for tuning the VAD threshold |
 | [deploy/kaira.sh](deploy/kaira.sh) | Checks and restarts systemd services on the server |
+| [display/](display/) | 16x16 renderer, preview daemon, and DDP client for WLED |
+| [docs/display.md](docs/display.md) | Hardware, WLED, and 16x16 display setup |
 | [sort_downloads.py](sort_downloads.py) | Standalone `~/Downloads` cleanup utility, unrelated to the assistant |
 
 ---
@@ -198,6 +200,30 @@ python timer_watcher.py
 
 If STT, TTS, or the LLM run on another machine, change `STT_URL` in [main.py](main.py),
 `TTS_URL` in the environment, or `LOCAL_LLM_URL` in `.env`.
+
+---
+
+## 16x16 LED display
+
+Kera can drive a 16x16 WS2812B panel through WLED. The mini-PC renders every frame in Python and
+sends it over DDP; the ESP32 only displays it. The same frames are served by a browser preview,
+so the look can be tested without hardware.
+
+![Display states](docs/display-preview.png)
+
+```bash
+# preview only, no panel required
+python -m display.server
+# open http://<mini-pc>:8090
+
+# with the panel
+WLED_HOST=192.168.1.50 python -m display.server
+```
+
+The assistant automatically publishes `idle`, `listening`, `thinking`, `speaking`, `error`,
+`timer`, `alarm`, and `music`. If the display daemon is down, the voice loop is unaffected.
+Wiring, power budget, WLED settings, test patterns, and troubleshooting are in
+[docs/display.md](docs/display.md).
 
 ---
 

@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kera 16x16 display</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #080b12;
+    --panel: #0e1420;
+    --line: #1d2a3d;
+    --text: #d8e4f5;
+    --muted: #7f92ab;
+    --cyan: #00c8ff;
+    --green: #00ff78;
+    --amber: #ffaa00;
+    --red: #ff2828;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at 20% 0%, #122033 0%, var(--bg) 55%);
+    color: var(--text);
+    font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 28px 20px 48px;
+    display: grid;
+    grid-template-columns: minmax(280px, 560px) minmax(280px, 1fr);
+    gap: 22px;
+  }
+  .panel {
+    background: rgba(14, 20, 32, 0.92);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  }
+  .preview { display: flex; flex-direction: column; gap: 12px; }
+  .screen-wrap {
+    position: relative;
+    border-radius: 12px;
+    padding: 10px;
+    background: #03050a;
+    border: 1px solid #23344c;
+    box-shadow: inset 0 0 40px rgba(0, 200, 255, 0.08), 0 0 28px rgba(0, 200, 255, 0.05);
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+    border-radius: 6px;
+  }
+  .status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: center;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .status strong { color: var(--cyan); font-weight: 600; }
+  .status .pill {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+  h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: 0.02em; }
+  h2 { margin: 0 0 8px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .hint { margin: 0 0 18px; color: var(--muted); font-size: 12px; }
+  .group { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+  .group:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+  button {
+    background: #111b2b;
+    color: var(--text);
+    border: 1px solid #263a54;
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  button:hover { border-color: var(--cyan); }
+  button.active { border-color: var(--cyan); color: var(--cyan); background: rgba(0, 200, 255, 0.08); }
+  button[data-pattern] { color: #c8d6ea; }
+  label { display: flex; align-items: center; gap: 8px; margin: 8px 0; color: var(--muted); font-size: 12px; }
+  input[type="range"] { flex: 1; accent-color: var(--cyan); }
+  input[type="number"], input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    background: #080d15;
+    color: var(--text);
+    border: 1px solid #263a54;
+    border-radius: 8px;
+    padding: 7px 9px;
+    font: inherit;
+    font-size: 12px;
+  }
+  input:focus, button:focus { outline: 1px solid var(--cyan); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="panel preview">
+    <div class="screen-wrap">
+      <canvas id="matrix" width="512" height="512"></canvas>
+    </div>
+    <div class="status">
+      <span class="pill">State: <strong id="state">idle</strong></span>
+      <span class="pill">Frames: <span id="fps">0</span>/s</span>
+      <span class="pill" id="wled">preview only</span>
+      <span class="pill">Timer: <span id="timer">0</span>s</span>
+    </div>
+  </section>
+
+  <section class="panel controls">
+    <h1>Kera 16x16 display</h1>
+    <p class="hint">Live preview of the same frames sent to WLED over DDP. Buttons call the local display API.</p>
+
+    <div class="group">
+      <h2>States</h2>
+      <div class="buttons" id="states">
+        <button data-state="idle">Idle</button>
+        <button data-state="listening">Listening</button>
+        <button data-state="thinking">Thinking</button>
+        <button data-state="speaking">Speaking</button>
+        <button data-state="error">Error</button>
+        <button data-state="timer">Timer</button>
+        <button data-state="alarm">Alarm</button>
+        <button data-state="music">Music</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Input</h2>
+      <label>Level
+        <input id="level" type="range" min="0" max="100" value="0">
+      </label>
+      <label>Brightness
+        <input id="brightness" type="range" min="0" max="255" value="255">
+      </label>
+      <div class="row">
+        <label style="flex:1">Timer (s)
+          <input id="timerInput" type="number" min="0" step="1" value="300">
+        </label>
+        <button id="setTimer">Set</button>
+      </div>
+      <div class="row">
+        <label style="flex:1">Text
+          <input id="textInput" type="text" maxlength="64" placeholder="TIMER 5:00">
+        </label>
+        <button id="sendText">Send</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Test patterns</h2>
+      <div class="buttons" id="patterns">
+        <button data-pattern="bars">Color bars</button>
+        <button data-pattern="checker">Checker</button>
+        <button data-pattern="gradient">Gradient</button>
+        <button data-pattern="corners">Corners</button>
+        <button data-pattern="snake">Snake</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Demo</h2>
+      <div class="buttons">
+        <button id="demo">Cycle states</button>
+        <button id="clear">Clear</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const canvas = document.getElementById("matrix");
+  const ctx = canvas.getContext("2d");
+  const off = document.createElement("canvas");
+  off.width = 16;
+  off.height = 16;
+  const offCtx = off.getContext("2d");
+  const image = offCtx.createImageData(16, 16);
+
+  const stateEl = document.getElementById("state");
+  const fpsEl = document.getElementById("fps");
+  const wledEl = document.getElementById("wled");
+  const timerEl = document.getElementById("timer");
+
+  function drawFrame(base64) {
+    const raw = atob(base64);
+    const data = image.data;
+    for (let i = 0; i < 256; i++) {
+      data[i * 4] = raw.charCodeAt(i * 3);
+      data[i * 4 + 1] = raw.charCodeAt(i * 3 + 1);
+      data[i * 4 + 2] = raw.charCodeAt(i * 3 + 2);
+      data[i * 4 + 3] = 255;
+    }
+    offCtx.putImageData(image, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+  }
+
+  function post(path, body) {
+    return fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  }
+
+  new EventSource("/events").onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    drawFrame(msg.frame);
+    stateEl.textContent = msg.state;
+    fpsEl.textContent = msg.fps || 0;
+    timerEl.textContent = msg.timer || 0;
+    wledEl.textContent = msg.wled ? "WLED DDP" : "preview only";
+    document.querySelectorAll("#states button").forEach((button) => {
+      button.classList.toggle("active", button.dataset.state === msg.state);
+    });
+  };
+
+  document.querySelectorAll("#states button").forEach((button) => {
+    button.addEventListener("click", () => post("/api/state", { state: button.dataset.state }));
+  });
+
+  document.getElementById("level").addEventListener("input", (event) => {
+    post("/api/level", { level: Number(event.target.value) / 100 });
+  });
+
+  document.getElementById("brightness").addEventListener("input", (event) => {
+    post("/api/brightness", { value: Number(event.target.value) });
+  });
+
+  document.getElementById("setTimer").addEventListener("click", () => {
+    const seconds = Number(document.getElementById("timerInput").value || 0);
+    post("/api/timer", { seconds });
+    post("/api/state", { state: "idle" });
+  });
+
+  document.getElementById("sendText").addEventListener("click", () => {
+    const text = document.getElementById("textInput").value.trim();
+    if (text) post("/api/text", { text, color: "#00c8ff" });
+  });
+
+  document.querySelectorAll("#patterns button").forEach((button) => {
+    button.addEventListener("click", () => post("/api/test", { pattern: button.dataset.pattern }));
+  });
+
+  document.getElementById("clear").addEventListener("click", () => post("/api/clear", {}));
+
+  let demoId = null;
+  const demoNames = ["idle", "listening", "thinking", "speaking", "timer", "alarm", "music"];
+  let demoIndex = 0;
+  document.getElementById("demo").addEventListener("click", () => {
+    if (demoId) {
+      clearInterval(demoId);
+      demoId = null;
+      return;
+    }
+    demoIndex = 0;
+    const tick = () => {
+      const name = demoNames[demoIndex % demoNames.length];
+      demoIndex += 1;
+      post("/api/state", { state: name });
+      const level = name === "listening" || name === "speaking" ? 0.35 + Math.random() * 0.65 : 0;
+      post("/api/level", { level });
+      if (name === "timer") post("/api/timer", { seconds: 125 });
+      if (name === "alarm") post("/api/timer", { seconds: 0 });
+      if (name === "idle") post("/api/timer", { seconds: 0 });
+    };
+    tick();
+    demoId = setInterval(tick, 2500);
+  });
+</script>
+</body>
+</html>
